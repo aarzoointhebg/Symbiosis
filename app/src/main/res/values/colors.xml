@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="forest_green">#FF244B38</color>
+    <color name="botanical_green">#FF527A56</color>
+    <color name="muted_sage">#FFA8B99C</color>
+    <color name="golden_yellow">#FFD8A94E</color>
+    <color name="soft_cream">#FFFAF7EF</color>
+    <color name="warm_white">#FFFFFDF8</color>
+    <color name="earth_brown">#FF8C7055</color>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="firestore_database_id" translatable="false">ai-studio-android-symbiosi-bec83e0c-456d-4314-8529-a4961e6dd534</string>
+    <string name="recaptcha_site_key" translatable="false">6LfeYyguAAAAALfr2nBEh1BaV9kY8akWvg9x_V6I</string>
+</resources>

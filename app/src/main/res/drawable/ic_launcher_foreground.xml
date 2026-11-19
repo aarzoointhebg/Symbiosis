@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Left complete flowing organic loop (Soft Cream / Sage) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FAF7EF"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,54 C46,41 34,37 28,45 C22,53 26,65 36,68 C45,71 53,63 59,54 C64,46 69,43 74,45" />
+    <!-- Right complete flowing organic loop (Warm Golden Yellow) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#D8A94E"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,54 C62,41 74,37 80,45 C86,53 82,65 72,68 C63,71 55,63 49,54 C44,46 39,43 34,45" />
+    <!-- Subtle botanical unity leaf/spark above the heart-infinity intersection -->
+    <path
+        android:fillColor="#A8B99C"
+        android:pathData="M54,28 C57,33 57,38 54,41 C51,38 51,33 54,28 Z" />
+    <path
+        android:fillColor="#D8A94E"
+        android:pathData="M54,70 L56.2,74.8 L61,77 L56.2,79.2 L54,84 L51.8,79.2 L47,77 L51.8,74.8 Z" />
+</vector>

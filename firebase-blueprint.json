@@ -1,0 +1,258 @@
+{
+  "entities": {
+    "CommunityProfile": {
+      "title": "CommunityProfile",
+      "description": "User-controlled capability, ambition, and collaboration preferences profile without PII.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of profile owner" },
+        "displayName": { "type": "string", "description": "Public display name (2-60 chars)" },
+        "headline": { "type": "string", "description": "Short personal introduction" },
+        "bio": { "type": "string", "description": "Natural-language story of interests and strengths" },
+        "skills": { "type": "array", "description": "User-approved structured skills (max 20)" },
+        "skillProficiencies": { "type": "object", "description": "Self-assessed proficiency per skill (BEGINNER, INTERMEDIATE, ADVANCED, EXPERT)" },
+        "knowledgeAreas": { "type": "array", "description": "Knowledge domains (max 20)" },
+        "practicalAbilities": { "type": "array", "description": "Practical abilities (max 20)" },
+        "interests": { "type": "array", "description": "Interests and curiosity areas (max 20)" },
+        "resources": { "type": "array", "description": "Resources the user can contribute (max 15)" },
+        "supportWanted": { "type": "array", "description": "Areas where support is appreciated (max 15)" },
+        "ambitions": { "type": "array", "description": "Personal ambitions (max 15)" },
+        "currentProjects": { "type": "array", "description": "Current active projects (max 10)" },
+        "collaborationStyle": { "type": "string", "enum": ["ASYNC", "REALTIME", "HYBRID", "SMALL_GROUP"] },
+        "availability": { "type": "string", "enum": ["WEEKDAYS", "WEEKENDS", "FLEXIBLE", "EVENINGS"] },
+        "communicationPrefs": { "type": "array", "description": "Preferred communication channels (max 6)" },
+        "accessibilityPrefs": { "type": "array", "description": "Self-defined accessibility preferences (max 8)" },
+        "constraintsNote": { "type": "string", "description": "User-defined collaboration boundaries" },
+        "visibility": { "type": "string", "enum": ["COMMUNITY", "INVITE_ONLY", "PRIVATE"] },
+        "onboardingCompleted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "visibility", "onboardingCompleted", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user's matching profile storing skills, interests, and schedule availability.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of profile owner" },
+        "displayName": { "type": "string", "description": "Display name (2-60 chars)" },
+        "headline": { "type": "string", "description": "Optional role or focus headline (max 140 chars)" },
+        "bio": { "type": "string", "description": "Optional short introduction (max 600 chars)" },
+        "skills": { "type": "array", "description": "Selected or custom skills (max 20)" },
+        "skillProficiencies": { "type": "object", "description": "Self-assessed proficiency per skill (BEGINNER, INTERMEDIATE, ADVANCED, EXPERT)" },
+        "interests": { "type": "array", "description": "Selected or custom interests (max 20)" },
+        "availability": { "type": "string", "enum": ["WEEKDAYS", "WEEKENDS", "FLEXIBLE", "EVENINGS"] },
+        "availableDays": { "type": "array", "description": "Preferred days of week (max 7)" },
+        "timeSlots": { "type": "array", "description": "Preferred time slots (max 3)" },
+        "collaborationStyle": { "type": "string", "enum": ["ASYNC", "REALTIME", "HYBRID", "SMALL_GROUP"] },
+        "supportWanted": { "type": "array", "description": "Areas where collaboration is welcome (max 15)" },
+        "onboardingCompleted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "availability", "collaborationStyle", "onboardingCompleted", "createdAt", "updatedAt"]
+    },
+    "PrivateSettings": {
+      "title": "PrivateSettings",
+      "description": "Owner-only private account, safety, and collaboration consent settings.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "schoolOrCommunityContext": { "type": "string" },
+        "consentToCollaborate": { "type": "boolean" },
+        "allowDirectInvitations": { "type": "boolean" },
+        "safetyGuidanceAcknowledged": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "consentToCollaborate", "allowDirectInvitations", "updatedAt"]
+    },
+    "UserAmbition": {
+      "title": "UserAmbition",
+      "description": "Personal short-term or long-term ambition owned by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "horizon": { "type": "string", "enum": ["SHORT_TERM", "LONG_TERM"] },
+        "priority": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+        "tags": { "type": "array" },
+        "sharedToCommunity": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "horizon", "priority", "sharedToCommunity", "createdAt", "updatedAt"]
+    },
+    "Mission": {
+      "title": "Mission",
+      "description": "Collaborative mission with required/optional capabilities and semantic intent.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "objective": { "type": "string" },
+        "intendedOutcome": { "type": "string" },
+        "problemAddressed": { "type": "string" },
+        "interpretedIntent": { "type": "string" },
+        "intentDomain": { "type": "string" },
+        "requiredCapabilities": { "type": "array" },
+        "optionalCapabilities": { "type": "array" },
+        "activities": { "type": "array" },
+        "availabilityReq": { "type": "string" },
+        "accessibilityReq": { "type": "string" },
+        "targetParticipants": { "type": "integer" },
+        "memberUids": { "type": "array" },
+        "status": { "type": "string", "enum": ["OPEN", "ACTIVE", "COMPLETED"] },
+        "visibility": { "type": "string", "enum": ["COMMUNITY", "PRIVATE"] },
+        "progressPercent": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "ownerName", "title", "description", "objective", "requiredCapabilities", "memberUids", "status", "visibility", "progressPercent", "createdAt", "updatedAt"]
+    },
+    "MissionMilestone": {
+      "title": "MissionMilestone",
+      "description": "Collaborative milestone within a shared mission.",
+      "type": "object",
+      "properties": {
+        "missionId": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "title": { "type": "string" },
+        "assignedRole": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["missionId", "ownerId", "memberUids", "title", "completed", "createdAt", "updatedAt"]
+    },
+    "CollaborationInvitation": {
+      "title": "CollaborationInvitation",
+      "description": "Consent-gated invitation to collaborate on a mission.",
+      "type": "object",
+      "properties": {
+        "missionId": { "type": "string" },
+        "missionTitle": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "recipientName": { "type": "string" },
+        "participantUids": { "type": "array" },
+        "proposedRole": { "type": "string" },
+        "rationale": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "DECLINED", "CANCELLED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["missionId", "missionTitle", "senderId", "senderName", "recipientId", "recipientName", "participantUids", "proposedRole", "rationale", "status", "createdAt", "updatedAt"]
+    },
+    "SavedPossibility": {
+      "title": "SavedPossibility",
+      "description": "Saved Possibility Finder analysis snapshot for a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "objective": { "type": "string" },
+        "summary": { "type": "string" },
+        "missingCapabilities": { "type": "array" },
+        "suggestedCollaborators": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "objective", "summary", "createdAt"]
+    },
+    "SafetyBlock": {
+      "title": "SafetyBlock",
+      "description": "User-managed block or safety report entry.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "blockedUserId": { "type": "string" },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "blockedUserId", "reason", "createdAt"]
+    },
+    "SkillEndorsement": {
+      "title": "SkillEndorsement",
+      "description": "Peer-to-peer skill endorsement stored in Firestore to build trust across SYMBIOSIS.",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string", "description": "User ID receiving the skill endorsement" },
+        "recipientName": { "type": "string", "description": "Display name of recipient (1-60 chars)" },
+        "endorserId": { "type": "string", "description": "Firebase Auth UID of the endorsing user" },
+        "endorserName": { "type": "string", "description": "Display name of endorser (1-60 chars)" },
+        "skillName": { "type": "string", "description": "Display label of endorsed skill (1-60 chars)" },
+        "normalizedSkill": { "type": "string", "description": "Normalized lowercase skill key (1-60 chars)" },
+        "note": { "type": "string", "description": "Optional endorsement note (max 200 chars)" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientId", "recipientName", "endorserId", "endorserName", "skillName", "normalizedSkill", "createdAt"]
+    },
+    "CollaborationMessage": {
+      "title": "CollaborationMessage",
+      "description": "Direct collaboration discussion message exchanged between two matched SYMBIOSIS members.",
+      "type": "object",
+      "properties": {
+        "threadId": { "type": "string", "description": "Deterministic thread identifier between the two participants" },
+        "senderId": { "type": "string", "description": "Firebase Auth UID of the message author" },
+        "senderName": { "type": "string", "description": "Display name of sender (1-60 chars)" },
+        "recipientId": { "type": "string", "description": "Peer user ID receiving the message" },
+        "recipientName": { "type": "string", "description": "Display name of recipient (1-60 chars)" },
+        "participantUids": { "type": "array", "description": "Two-element list of participant UIDs" },
+        "body": { "type": "string", "description": "Message text content (1-1000 chars)" },
+        "contextLabel": { "type": "string", "description": "Optional complementary skill/mission context (max 140 chars)" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["threadId", "senderId", "senderName", "recipientId", "recipientName", "participantUids", "body", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/community_profiles/{userId}": {
+      "schema": { "$ref": "#/entities/CommunityProfile" },
+      "description": "Discoverable capability profiles controlled by each user."
+    },
+    "/users/{userId}/user_profile/{profileId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Authenticated user's detailed matching profile (skills, interests, schedule availability)."
+    },
+    "/users/{userId}/private_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/PrivateSettings" },
+      "description": "Private user settings and safety acknowledgements."
+    },
+    "/users/{userId}/ambitions/{ambitionId}": {
+      "schema": { "$ref": "#/entities/UserAmbition" },
+      "description": "Personal ambitions owned by the user."
+    },
+    "/users/{userId}/saved_possibilities/{possibilityId}": {
+      "schema": { "$ref": "#/entities/SavedPossibility" },
+      "description": "Saved Possibility Finder explorations."
+    },
+    "/users/{userId}/safety_blocks/{blockedUserId}": {
+      "schema": { "$ref": "#/entities/SafetyBlock" },
+      "description": "User safety block list."
+    },
+    "/missions/{missionId}": {
+      "schema": { "$ref": "#/entities/Mission" },
+      "description": "Collaborative missions across SYMBIOSIS."
+    },
+    "/missions/{missionId}/milestones/{milestoneId}": {
+      "schema": { "$ref": "#/entities/MissionMilestone" },
+      "description": "Milestones inside a collaborative mission."
+    },
+    "/invitations/{invitationId}": {
+      "schema": { "$ref": "#/entities/CollaborationInvitation" },
+      "description": "Consent-gated collaboration invitations."
+    },
+    "/skill_endorsements/{endorsementId}": {
+      "schema": { "$ref": "#/entities/SkillEndorsement" },
+      "description": "Immutable peer skill endorsements used to surface trust badges on user profiles."
+    },
+    "/collaboration_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/CollaborationMessage" },
+      "description": "Direct collaboration discussion messages scoped strictly to participants."
+    }
+  }
+}

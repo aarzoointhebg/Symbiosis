@@ -1,0 +1,6 @@
+{
+  "name": "SYMBIOSIS",
+  "description": "A human capability-matching, intent-based mission discovery, and collaboration platform: Different Abilities. Shared Possibilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

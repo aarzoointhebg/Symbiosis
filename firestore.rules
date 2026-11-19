@@ -1,0 +1,418 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidStringList(arr, maxLen) {
+      return arr is list && arr.size() <= maxLen && (arr.size() == 0 || arr[0] is string);
+    }
+
+    function isValidSkillProficiencies(m) {
+      return m is map && m.size() <= 20;
+    }
+
+    function isValidCommunityProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 60 &&
+             (!('headline' in data) || (data.headline is string && data.headline.size() <= 140)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() <= 600)) &&
+             (!('skills' in data) || isValidStringList(data.skills, 20)) &&
+             (!('skillProficiencies' in data) || isValidSkillProficiencies(data.skillProficiencies)) &&
+             (!('knowledgeAreas' in data) || isValidStringList(data.knowledgeAreas, 20)) &&
+             (!('practicalAbilities' in data) || isValidStringList(data.practicalAbilities, 20)) &&
+             (!('interests' in data) || isValidStringList(data.interests, 20)) &&
+             (!('resources' in data) || isValidStringList(data.resources, 15)) &&
+             (!('supportWanted' in data) || isValidStringList(data.supportWanted, 15)) &&
+             (!('ambitions' in data) || isValidStringList(data.ambitions, 15)) &&
+             (!('currentProjects' in data) || isValidStringList(data.currentProjects, 10)) &&
+             (!('collaborationStyle' in data) || (data.collaborationStyle in ['ASYNC', 'REALTIME', 'HYBRID', 'SMALL_GROUP'])) &&
+             (!('availability' in data) || (data.availability in ['WEEKDAYS', 'WEEKENDS', 'FLEXIBLE', 'EVENINGS'])) &&
+             (!('communicationPrefs' in data) || isValidStringList(data.communicationPrefs, 6)) &&
+             (!('accessibilityPrefs' in data) || isValidStringList(data.accessibilityPrefs, 8)) &&
+             (!('constraintsNote' in data) || (data.constraintsNote is string && data.constraintsNote.size() <= 300)) &&
+             data.visibility in ['COMMUNITY', 'INVITE_ONLY', 'PRIVATE'] &&
+              data.onboardingCompleted is bool &&
+              data.createdAt is timestamp &&
+              data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 60 &&
+             (!('headline' in data) || (data.headline is string && data.headline.size() <= 140)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() <= 600)) &&
+             (!('skills' in data) || isValidStringList(data.skills, 20)) &&
+             (!('skillProficiencies' in data) || isValidSkillProficiencies(data.skillProficiencies)) &&
+             (!('interests' in data) || isValidStringList(data.interests, 20)) &&
+             (!('availability' in data) || (data.availability in ['WEEKDAYS', 'WEEKENDS', 'FLEXIBLE', 'EVENINGS'])) &&
+             (!('availableDays' in data) || isValidStringList(data.availableDays, 7)) &&
+             (!('timeSlots' in data) || isValidStringList(data.timeSlots, 3)) &&
+             (!('collaborationStyle' in data) || (data.collaborationStyle in ['ASYNC', 'REALTIME', 'HYBRID', 'SMALL_GROUP'])) &&
+             (!('supportWanted' in data) || isValidStringList(data.supportWanted, 15)) &&
+             data.onboardingCompleted is bool &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidPrivateSettings(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             (!('schoolOrCommunityContext' in data) || (data.schoolOrCommunityContext is string && data.schoolOrCommunityContext.size() <= 120)) &&
+             data.consentToCollaborate is bool &&
+             data.allowDirectInvitations is bool &&
+             (!('safetyGuidanceAcknowledged' in data) || data.safetyGuidanceAcknowledged is bool) &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidAmbition(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+             data.horizon in ['SHORT_TERM', 'LONG_TERM'] &&
+             data.priority in ['HIGH', 'MEDIUM', 'LOW'] &&
+             (!('tags' in data) || isValidStringList(data.tags, 10)) &&
+             data.sharedToCommunity is bool &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMission(data) {
+      return data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+             data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 60 &&
+             data.title is string && data.title.size() >= 3 && data.title.size() <= 120 &&
+             data.description is string && data.description.size() >= 5 && data.description.size() <= 1000 &&
+             data.objective is string && data.objective.size() >= 3 && data.objective.size() <= 300 &&
+             (!('intendedOutcome' in data) || (data.intendedOutcome is string && data.intendedOutcome.size() <= 300)) &&
+             (!('problemAddressed' in data) || (data.problemAddressed is string && data.problemAddressed.size() <= 300)) &&
+             (!('interpretedIntent' in data) || (data.interpretedIntent is string && data.interpretedIntent.size() <= 500)) &&
+             (!('intentDomain' in data) || (data.intentDomain is string && data.intentDomain.size() <= 80)) &&
+             isValidStringList(data.requiredCapabilities, 15) &&
+             (!('optionalCapabilities' in data) || isValidStringList(data.optionalCapabilities, 15)) &&
+             (!('activities' in data) || isValidStringList(data.activities, 15)) &&
+             (!('availabilityReq' in data) || (data.availabilityReq is string && data.availabilityReq.size() <= 40)) &&
+             (!('accessibilityReq' in data) || (data.accessibilityReq is string && data.accessibilityReq.size() <= 120)) &&
+             (!('targetParticipants' in data) || (data.targetParticipants is int && data.targetParticipants >= 1 && data.targetParticipants <= 20)) &&
+             isValidStringList(data.memberUids, 20) &&
+             data.status in ['OPEN', 'ACTIVE', 'COMPLETED'] &&
+             data.visibility in ['COMMUNITY', 'PRIVATE'] &&
+             data.progressPercent is int && data.progressPercent >= 0 && data.progressPercent <= 100 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMilestone(data) {
+      return data.missionId is string && isValidId(data.missionId) &&
+             data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+             isValidStringList(data.memberUids, 20) &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 160 &&
+             (!('assignedRole' in data) || (data.assignedRole is string && data.assignedRole.size() <= 80)) &&
+             data.completed is bool &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidInvitation(data) {
+      return data.missionId is string && isValidId(data.missionId) &&
+             data.missionTitle is string && data.missionTitle.size() >= 2 && data.missionTitle.size() <= 120 &&
+             data.senderId is string && data.senderId.size() >= 1 && data.senderId.size() <= 128 &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 60 &&
+             data.recipientId is string && data.recipientId.size() >= 1 && data.recipientId.size() <= 128 &&
+             data.recipientName is string && data.recipientName.size() >= 1 && data.recipientName.size() <= 60 &&
+             data.participantUids is list && data.participantUids.size() == 2 &&
+             data.proposedRole is string && data.proposedRole.size() >= 1 && data.proposedRole.size() <= 80 &&
+             data.rationale is string && data.rationale.size() >= 1 && data.rationale.size() <= 400 &&
+             data.status in ['PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED'] &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSavedPossibility(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.objective is string && data.objective.size() >= 3 && data.objective.size() <= 300 &&
+             data.summary is string && data.summary.size() >= 3 && data.summary.size() <= 600 &&
+             (!('missingCapabilities' in data) || isValidStringList(data.missingCapabilities, 15)) &&
+             (!('suggestedCollaborators' in data) || isValidStringList(data.suggestedCollaborators, 15)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidSafetyBlock(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.blockedUserId is string && isValidId(data.blockedUserId) &&
+             data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 300 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidSkillEndorsement(data) {
+      return data.recipientId is string && isValidId(data.recipientId) &&
+             data.recipientName is string && data.recipientName.size() >= 1 && data.recipientName.size() <= 60 &&
+             data.endorserId is string && data.endorserId.size() >= 1 && data.endorserId.size() <= 128 &&
+             data.endorserName is string && data.endorserName.size() >= 1 && data.endorserName.size() <= 60 &&
+             data.skillName is string && data.skillName.size() >= 1 && data.skillName.size() <= 60 &&
+             data.normalizedSkill is string && data.normalizedSkill.size() >= 1 && data.normalizedSkill.size() <= 60 &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 200)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidCollaborationMessage(data) {
+      return data.threadId is string && isValidId(data.threadId) &&
+             data.senderId is string && data.senderId.size() >= 1 && data.senderId.size() <= 128 &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 60 &&
+             data.recipientId is string && isValidId(data.recipientId) &&
+             data.recipientName is string && data.recipientName.size() >= 1 && data.recipientName.size() <= 60 &&
+             data.participantUids is list && data.participantUids.size() == 2 &&
+             data.body is string && data.body.size() >= 1 && data.body.size() <= 1000 &&
+             (!('contextLabel' in data) || (data.contextLabel is string && data.contextLabel.size() <= 140)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // 1. Community Capability Profiles (no PII)
+    match /community_profiles/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (
+        request.auth.uid == userId || existing().visibility == 'COMMUNITY'
+      );
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || resource.data.visibility == 'COMMUNITY'
+      );
+      allow create: if isOwner(userId) && isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().createdAt <= request.time &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'visibility', 'onboardingCompleted', 'createdAt', 'updatedAt']) &&
+                       isValidCommunityProfile(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidCommunityProfile(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'headline', 'bio', 'skills', 'skillProficiencies',
+                         'knowledgeAreas', 'practicalAbilities', 'interests', 'resources',
+                         'supportWanted', 'ambitions', 'currentProjects', 'collaborationStyle',
+                         'availability', 'communicationPrefs', 'accessibilityPrefs',
+                         'constraintsNote', 'visibility', 'onboardingCompleted', 'updatedAt'
+                       ]);
+      allow delete: if isOwner(userId) && isValidId(userId);
+    }
+
+    // 2. Owner-scoped user subcollections
+    match /users/{userId} {
+      match /user_profile/{profileId} {
+        allow get: if isOwner(userId) && isValidId(profileId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(profileId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().createdAt <= request.time &&
+                         incoming().keys().hasAll(['userId', 'displayName', 'availability', 'collaborationStyle', 'onboardingCompleted', 'createdAt', 'updatedAt']) &&
+                         isValidUserProfile(incoming());
+        allow update: if isOwner(userId) && isValidId(profileId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidUserProfile(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'displayName', 'headline', 'bio', 'skills', 'skillProficiencies',
+                           'interests', 'availability', 'availableDays', 'timeSlots',
+                           'collaborationStyle', 'supportWanted', 'onboardingCompleted', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(profileId);
+      }
+
+      match /private_settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(settingId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(settingId) &&
+                         incoming().userId == request.auth.uid &&
+                         isValidPrivateSettings(incoming());
+        allow update: if isOwner(userId) && isValidId(settingId) &&
+                         incoming().userId == existing().userId &&
+                         isValidPrivateSettings(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'schoolOrCommunityContext', 'consentToCollaborate',
+                           'allowDirectInvitations', 'safetyGuidanceAcknowledged', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(settingId);
+      }
+
+      match /ambitions/{ambitionId} {
+        allow get: if isOwner(userId) && isValidId(ambitionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(ambitionId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().createdAt <= request.time &&
+                         isValidAmbition(incoming());
+        allow update: if isOwner(userId) && isValidId(ambitionId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidAmbition(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'title', 'description', 'horizon', 'priority', 'tags', 'sharedToCommunity', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(ambitionId);
+      }
+
+      match /saved_possibilities/{possibilityId} {
+        allow get: if isOwner(userId) && isValidId(possibilityId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(possibilityId) &&
+                         incoming().userId == request.auth.uid &&
+                         isValidSavedPossibility(incoming());
+        allow delete: if isOwner(userId) && isValidId(possibilityId);
+      }
+
+      match /safety_blocks/{blockedUserId} {
+        allow get: if isOwner(userId) && isValidId(blockedUserId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(blockedUserId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().blockedUserId == blockedUserId &&
+                         isValidSafetyBlock(incoming());
+        allow delete: if isOwner(userId) && isValidId(blockedUserId);
+      }
+    }
+
+    // 3. Collaborative Missions & Milestones
+    match /missions/{missionId} {
+      allow get: if isSignedIn() && isValidId(missionId) && (
+        existing().ownerId == request.auth.uid ||
+        request.auth.uid in existing().memberUids ||
+        existing().visibility == 'COMMUNITY'
+      );
+      allow list: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        request.auth.uid in resource.data.memberUids ||
+        resource.data.visibility == 'COMMUNITY'
+      );
+      allow create: if isSignedIn() && isValidId(missionId) &&
+                       incoming().ownerId == request.auth.uid &&
+                       request.auth.uid in incoming().memberUids &&
+                       incoming().createdAt <= request.time &&
+                       isValidMission(incoming());
+      allow update: if isSignedIn() && isValidId(missionId) &&
+                       isValidMission(incoming()) &&
+                       existing().status != 'COMPLETED' &&
+                       incoming().ownerId == existing().ownerId &&
+                       incoming().createdAt == existing().createdAt && (
+                         (existing().ownerId == request.auth.uid &&
+                          incoming().diff(existing()).affectedKeys().hasOnly([
+                            'title', 'description', 'objective', 'intendedOutcome',
+                            'problemAddressed', 'interpretedIntent', 'intentDomain',
+                            'requiredCapabilities', 'optionalCapabilities', 'activities',
+                            'availabilityReq', 'accessibilityReq', 'targetParticipants',
+                            'memberUids', 'status', 'visibility', 'progressPercent', 'updatedAt'
+                          ])) ||
+                         (request.auth.uid in existing().memberUids &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['progressPercent', 'updatedAt']))
+                       );
+      allow delete: if isSignedIn() && isValidId(missionId) && existing().ownerId == request.auth.uid;
+
+      match /milestones/{milestoneId} {
+        allow get: if isSignedIn() && isValidId(missionId) && isValidId(milestoneId) && (
+          existing().ownerId == request.auth.uid ||
+          request.auth.uid in existing().memberUids
+        );
+        allow list: if isSignedIn() && (
+          resource.data.ownerId == request.auth.uid ||
+          request.auth.uid in resource.data.memberUids
+        );
+        allow create: if isSignedIn() && isValidId(missionId) && isValidId(milestoneId) &&
+                         incoming().missionId == missionId &&
+                         incoming().createdAt <= request.time &&
+                         isValidMilestone(incoming()) &&
+                         exists(/databases/$(database)/documents/missions/$(missionId)) &&
+                         request.auth.uid in get(/databases/$(database)/documents/missions/$(missionId)).data.memberUids;
+        allow update: if isSignedIn() && isValidId(missionId) && isValidId(milestoneId) &&
+                         isValidMilestone(incoming()) &&
+                         incoming().missionId == existing().missionId &&
+                         incoming().ownerId == existing().ownerId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (existing().ownerId == request.auth.uid || request.auth.uid in existing().memberUids) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'assignedRole', 'completed', 'updatedAt']);
+        allow delete: if isSignedIn() && isValidId(missionId) && isValidId(milestoneId) &&
+                         existing().ownerId == request.auth.uid;
+      }
+    }
+
+    // 4. Consent-Gated Collaboration Invitations
+    match /invitations/{invitationId} {
+      allow get: if isSignedIn() && isValidId(invitationId) &&
+                    request.auth.uid in existing().participantUids;
+      allow list: if isSignedIn() &&
+                     request.auth.uid in resource.data.participantUids;
+      allow create: if isSignedIn() && isValidId(invitationId) &&
+                       incoming().senderId == request.auth.uid &&
+                       incoming().status == 'PENDING' &&
+                       incoming().senderId in incoming().participantUids &&
+                       incoming().recipientId in incoming().participantUids &&
+                       incoming().createdAt <= request.time &&
+                       isValidInvitation(incoming());
+      allow update: if isSignedIn() && isValidId(invitationId) &&
+                       isValidInvitation(incoming()) &&
+                       existing().status == 'PENDING' &&
+                       incoming().senderId == existing().senderId &&
+                       incoming().recipientId == existing().recipientId &&
+                       incoming().missionId == existing().missionId &&
+                       incoming().createdAt == existing().createdAt && (
+                         (request.auth.uid == existing().recipientId &&
+                          incoming().status in ['ACCEPTED', 'DECLINED'] &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+                         (request.auth.uid == existing().senderId &&
+                          incoming().status == 'CANCELLED' &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+                       );
+      allow delete: if isSignedIn() && isValidId(invitationId) &&
+                       existing().senderId == request.auth.uid;
+    }
+
+    // 5. Peer-to-Peer Skill Endorsements (trust badges)
+    match /skill_endorsements/{endorsementId} {
+      allow get: if isSignedIn() && isValidId(endorsementId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(endorsementId) &&
+                       incoming().endorserId == request.auth.uid &&
+                       incoming().recipientId != request.auth.uid &&
+                       incoming().createdAt <= request.time &&
+                       isValidSkillEndorsement(incoming());
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(endorsementId) &&
+                       existing().endorserId == request.auth.uid;
+    }
+
+    // 6. Direct Collaboration Discussion Messages (participant-scoped)
+    match /collaboration_messages/{messageId} {
+      allow get: if isSignedIn() && isValidId(messageId) &&
+                    request.auth.uid in existing().participantUids;
+      allow list: if isSignedIn() &&
+                     request.auth.uid in resource.data.participantUids;
+      allow create: if isSignedIn() && isValidId(messageId) &&
+                       incoming().senderId == request.auth.uid &&
+                       incoming().recipientId != request.auth.uid &&
+                       incoming().senderId in incoming().participantUids &&
+                       incoming().recipientId in incoming().participantUids &&
+                       incoming().createdAt <= request.time &&
+                       isValidCollaborationMessage(incoming());
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(messageId) &&
+                       existing().senderId == request.auth.uid;
+    }
+  }
+}
