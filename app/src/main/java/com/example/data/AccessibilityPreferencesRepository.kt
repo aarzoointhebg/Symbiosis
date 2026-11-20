@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.model.AccessibilitySettings
+import com.example.model.AppThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -22,6 +23,7 @@ class AccessibilityPreferencesRepository(private val context: Context) {
         val HIGH_CONTRAST = booleanPreferencesKey("high_contrast")
         val REDUCED_MOTION = booleanPreferencesKey("reduced_motion")
         val PREFERRED_COMMS = stringPreferencesKey("preferred_comms")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
     }
 
     val settingsFlow: Flow<AccessibilitySettings> = context.accessibilityDataStore.data.map { prefs ->
@@ -29,7 +31,8 @@ class AccessibilityPreferencesRepository(private val context: Context) {
             textScale = prefs[Keys.TEXT_SCALE] ?: 1.0f,
             highContrastMode = prefs[Keys.HIGH_CONTRAST] ?: false,
             reducedMotion = prefs[Keys.REDUCED_MOTION] ?: false,
-            preferredComms = prefs[Keys.PREFERRED_COMMS] ?: "Text & Screen-Reader Structured"
+            preferredComms = prefs[Keys.PREFERRED_COMMS] ?: "Text & Screen-Reader Structured",
+            themeMode = AppThemeMode.safeParse(prefs[Keys.THEME_MODE])
         )
     }
 
@@ -47,5 +50,9 @@ class AccessibilityPreferencesRepository(private val context: Context) {
 
     suspend fun setPreferredComms(comms: String) {
         context.accessibilityDataStore.edit { it[Keys.PREFERRED_COMMS] = comms }
+    }
+
+    suspend fun setThemeMode(mode: AppThemeMode) {
+        context.accessibilityDataStore.edit { it[Keys.THEME_MODE] = mode.name }
     }
 }

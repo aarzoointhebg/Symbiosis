@@ -11,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.model.AppThemeMode
 
 private val SymbiosisLightColorScheme = lightColorScheme(
     primary = DeepForestGreen,
@@ -39,6 +40,33 @@ private val SymbiosisLightColorScheme = lightColorScheme(
     onErrorContainer = GapTerracotta
 )
 
+private val SymbiosisWhiteColorScheme = lightColorScheme(
+    primary = DeepForestGreen,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFE9F2EC),
+    onPrimaryContainer = ForestGreenDark,
+    secondary = BotanicalGreen,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFD9E6DC),
+    onSecondaryContainer = ForestGreenDark,
+    tertiary = ComplementaryAmber,
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFF5DF),
+    onTertiaryContainer = Color(0xFF4D3306),
+    background = PureWhiteBackground,
+    onBackground = Color(0xFF131B15),
+    surface = PureWhiteSurface,
+    onSurface = Color(0xFF131B15),
+    surfaceVariant = PureWhiteSurfaceVariant,
+    onSurfaceVariant = Color(0xFF3E4E43),
+    outline = PureWhiteOutline,
+    outlineVariant = Color(0xFFC2CEC4),
+    error = GapTerracotta,
+    onError = Color.White,
+    errorContainer = GapSoftSurface,
+    onErrorContainer = GapTerracotta
+)
+
 private val SymbiosisHighContrastLightColorScheme = lightColorScheme(
     primary = ForestGreenDark,
     onPrimary = Color.White,
@@ -52,14 +80,14 @@ private val SymbiosisHighContrastLightColorScheme = lightColorScheme(
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFFBE5B6),
     onTertiaryContainer = Color(0xFF2D1C00),
-    background = Color(0xFFFFFDF9),
-    onBackground = Color(0xFF0E1510),
+    background = Color.White,
+    onBackground = Color(0xFF0A100C),
     surface = Color.White,
-    onSurface = Color(0xFF0E1510),
+    onSurface = Color(0xFF0A100C),
     surfaceVariant = Color(0xFFE5ECE0),
-    onSurfaceVariant = Color(0xFF1D2920),
-    outline = Color(0xFF47574B),
-    outlineVariant = Color(0xFF7B8C7E),
+    onSurfaceVariant = Color(0xFF142118),
+    outline = Color(0xFF38473C),
+    outlineVariant = Color(0xFF6B7C6E),
     error = Color(0xFF8C1D18),
     onError = Color.White,
     errorContainer = Color(0xFFFCE2E0),
@@ -67,12 +95,12 @@ private val SymbiosisHighContrastLightColorScheme = lightColorScheme(
 )
 
 private val SymbiosisDarkColorScheme = darkColorScheme(
-    primary = MutedSage,
+    primary = DarkMintPrimary,
     onPrimary = ForestGreenDark,
     primaryContainer = DeepForestGreen,
-    onPrimaryContainer = SoftCream,
-    secondary = BotanicalGreen,
-    onSecondary = WarmWhite,
+    onPrimaryContainer = DarkCreamText,
+    secondary = Color(0xFF8FBE94),
+    onSecondary = ForestGreenDark,
     secondaryContainer = DarkForestSurfaceVariant,
     onSecondaryContainer = DarkSageText,
     tertiary = WarmGoldenYellow,
@@ -93,6 +121,33 @@ private val SymbiosisDarkColorScheme = darkColorScheme(
     onErrorContainer = Color(0xFFFFDAD4)
 )
 
+private val SymbiosisHighContrastDarkColorScheme = darkColorScheme(
+    primary = Color(0xFFC2F2CF),
+    onPrimary = Color(0xFF04140B),
+    primaryContainer = Color(0xFF1E4C34),
+    onPrimaryContainer = Color.White,
+    secondary = Color(0xFFB3E5B8),
+    onSecondary = Color(0xFF04140B),
+    secondaryContainer = HighContrastDarkSurfaceVariant,
+    onSecondaryContainer = Color.White,
+    tertiary = Color(0xFFFFCF6E),
+    onTertiary = Color(0xFF1F1200),
+    tertiaryContainer = Color(0xFF5A420E),
+    onTertiaryContainer = Color(0xFFFFF4DC),
+    background = HighContrastDarkBackground,
+    onBackground = Color.White,
+    surface = HighContrastDarkSurface,
+    onSurface = Color.White,
+    surfaceVariant = HighContrastDarkSurfaceVariant,
+    onSurfaceVariant = Color(0xFFE6EFE8),
+    outline = HighContrastDarkOutline,
+    outlineVariant = Color(0xFF5E7C69),
+    error = Color(0xFFFFB4A9),
+    onError = Color(0xFF3A0904),
+    errorContainer = Color(0xFF6B1E15),
+    onErrorContainer = Color.White
+)
+
 val SymbiosisShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
@@ -102,22 +157,33 @@ val SymbiosisShapes = Shapes(
 )
 
 val LocalReducedMotion = staticCompositionLocalOf { false }
+val LocalSymbiosisIsDark = staticCompositionLocalOf { false }
+val LocalSymbiosisThemeMode = staticCompositionLocalOf { AppThemeMode.CREAM }
 
 @Composable
 fun SymbiosisTheme(
+    themeMode: AppThemeMode = AppThemeMode.CREAM,
     darkTheme: Boolean = isSystemInDarkTheme(),
     highContrast: Boolean = false,
     textScale: Float = 1.0f,
     reducedMotion: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val isDark = themeMode == AppThemeMode.DARK
     val colorScheme = when {
-        highContrast && !darkTheme -> SymbiosisHighContrastLightColorScheme
-        darkTheme -> SymbiosisDarkColorScheme
+        themeMode == AppThemeMode.DARK && highContrast -> SymbiosisHighContrastDarkColorScheme
+        themeMode == AppThemeMode.DARK -> SymbiosisDarkColorScheme
+        themeMode == AppThemeMode.WHITE && highContrast -> SymbiosisHighContrastLightColorScheme
+        themeMode == AppThemeMode.WHITE -> SymbiosisWhiteColorScheme
+        highContrast -> SymbiosisHighContrastLightColorScheme
         else -> SymbiosisLightColorScheme
     }
 
-    CompositionLocalProvider(LocalReducedMotion provides reducedMotion) {
+    CompositionLocalProvider(
+        LocalReducedMotion provides reducedMotion,
+        LocalSymbiosisIsDark provides isDark,
+        LocalSymbiosisThemeMode provides themeMode
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = buildSymbiosisTypography(textScale),
@@ -126,3 +192,4 @@ fun SymbiosisTheme(
         )
     }
 }
+

@@ -118,24 +118,3 @@ data class PossibilityAnalysis(
     val analysisSource: String
 )
 
-// Passwordless Email OTP Authentication Models (Part 11)
-enum class OtpSessionStep {
-    ENTER_EMAIL,
-    VERIFY_CODE,
-    VERIFIED
-}
-
-data class OtpAuthUiState(
-    val email: String = "",
-    val codeInput: String = "",
-    val step: OtpSessionStep = OtpSessionStep.ENTER_EMAIL,
-    val accountExists: Boolean? = null,
-    val isSubmitting: Boolean = false,
-    val statusBanner: String? = null,
-    val errorMessage: String? = null,
-    val resendCooldownSeconds: Int = 0,
-    val remainingAttempts: Int = 5,
-    val expiresInSeconds: Int = 0,
-    val isLockedOut: Boolean = false,
-    val devDemoPreviewHint: String? = null // Strictly debug/dev-only demonstration indicator
-)

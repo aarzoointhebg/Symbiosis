@@ -59,9 +59,11 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.theme.BotanicalGreen
 import com.example.ui.theme.DarkBarkText
+import com.example.ui.theme.DarkForestSurfaceVariant
 import com.example.ui.theme.DeepForestGreen
 import com.example.ui.theme.DuckBeakOrange
 import com.example.ui.theme.DuckYellow
+import com.example.ui.theme.LocalSymbiosisIsDark
 import com.example.ui.theme.MutedSage
 import com.example.ui.theme.PlayfairDisplayFontFamily
 import com.example.ui.theme.RabbitCream
@@ -199,7 +201,7 @@ fun DuckAndRabbitStoryCard(
     modifier: Modifier = Modifier,
     showArtworkBanner: Boolean = true
 ) {
-    var roleExchanged by remember { mutableStateOf(false) }
+    var roleExchanged by remember { mutableStateOf(true) }
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -246,36 +248,48 @@ fun DuckAndRabbitStoryCard(
                 }
             }
 
-            if (showArtworkBanner && !roleExchanged) {
-                Image(
-                    painter = painterResource(id = R.drawable.img_mascots_banner),
-                    contentDescription = "Storybook illustration of the yellow duck and cream rabbit surrounded by botanical leaves",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(176.dp)
-                        .clip(RoundedCornerShape(18.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            }
+            val isDark = LocalSymbiosisIsDark.current
 
-            // Custom Canvas storybook panel showing consistent Duck & Rabbit details
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(170.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(SoftCream, Color(0xFFEDF2E4))
-                        )
+            if (!roleExchanged && showArtworkBanner) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.img_mascots_banner),
+                        contentDescription = "The Founding Story illustration: the blind yellow duck with a white cane walking beside the sighted cream rabbit in a wheelchair toward a sunlit pavilion",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(206.dp)
+                            .clip(RoundedCornerShape(18.dp)),
+                        contentScale = ContentScale.Crop
                     )
-            ) {
-                DuckAndRabbitCanvas(
-                    roleExchanged = roleExchanged,
+                }
+            } else {
+                // Interactive Role-Exchange Storybook Scene
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(170.dp)
-                )
+                        .height(178.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = if (isDark) {
+                                    listOf(DarkForestSurfaceVariant, MaterialTheme.colorScheme.surface)
+                                } else {
+                                    listOf(SoftCream, Color(0xFFEDF2E4))
+                                }
+                            )
+                        )
+                ) {
+                    DuckAndRabbitCanvas(
+                        roleExchanged = roleExchanged,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(178.dp)
+                    )
+                }
             }
 
             AnimatedVisibility(visible = !roleExchanged, enter = fadeIn()) {

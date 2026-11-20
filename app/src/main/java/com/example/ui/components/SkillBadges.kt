@@ -7,11 +7,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessibilityNew
@@ -25,6 +23,7 @@ import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Spa
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.ThumbUpOffAlt
 import androidx.compose.material.icons.rounded.Verified
@@ -46,7 +45,9 @@ import com.example.model.SkillProficiency
 import com.example.ui.theme.BotanicalGreen
 import com.example.ui.theme.ComplementaryAmber
 import com.example.ui.theme.CoverageGreen
+import com.example.ui.theme.DarkMintPrimary
 import com.example.ui.theme.DeepForestGreen
+import com.example.ui.theme.LocalSymbiosisIsDark
 import com.example.ui.theme.MutedSage
 import com.example.ui.theme.SoftEarthBrown
 import com.example.ui.theme.WarmGoldenYellow
@@ -57,61 +58,79 @@ private data class ExpertiseVisualStyle(
     val containerColor: Color
 )
 
+@Composable
 private fun styleForSkill(skill: String): ExpertiseVisualStyle {
+    val isDark = LocalSymbiosisIsDark.current
     val s = skill.lowercase()
     return when {
         s.contains("program") || s.contains("code") || s.contains("kotlin") || s.contains("python") || s.contains("software") ->
-            ExpertiseVisualStyle(Icons.Rounded.Code, DeepForestGreen, Color(0xFFE3EFE7))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.Code, DarkMintPrimary, DarkMintPrimary.copy(alpha = 0.16f))
+            else ExpertiseVisualStyle(Icons.Rounded.Code, DeepForestGreen, Color(0xFFE3EFE7))
 
         s.contains("electron") || s.contains("hardware") || s.contains("sensor") || s.contains("arduino") || s.contains("robot") ->
-            ExpertiseVisualStyle(Icons.Rounded.Memory, BotanicalGreen, Color(0xFFE6F0E6))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.Memory, Color(0xFF9EE0B5), Color(0xFF9EE0B5).copy(alpha = 0.15f))
+            else ExpertiseVisualStyle(Icons.Rounded.Memory, BotanicalGreen, Color(0xFFE6F0E6))
 
         s.contains("design") || s.contains("visual") || s.contains("illustrat") || s.contains("ui") || s.contains("slide") ->
-            ExpertiseVisualStyle(Icons.Rounded.Palette, ComplementaryAmber, WarmGoldenYellow.copy(alpha = 0.22f))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.Palette, WarmGoldenYellow, WarmGoldenYellow.copy(alpha = 0.16f))
+            else ExpertiseVisualStyle(Icons.Rounded.Palette, ComplementaryAmber, WarmGoldenYellow.copy(alpha = 0.22f))
 
         s.contains("story") || s.contains("writ") || s.contains("doc") || s.contains("communicat") ->
-            ExpertiseVisualStyle(Icons.Rounded.AutoStories, SoftEarthBrown, SoftEarthBrown.copy(alpha = 0.14f))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.AutoStories, Color(0xFFE0BA8B), Color(0xFFE0BA8B).copy(alpha = 0.15f))
+            else ExpertiseVisualStyle(Icons.Rounded.AutoStories, SoftEarthBrown, SoftEarthBrown.copy(alpha = 0.14f))
 
         s.contains("access") || s.contains("tactile") || s.contains("braille") || s.contains("inclusive") ->
-            ExpertiseVisualStyle(Icons.Rounded.AccessibilityNew, CoverageGreen, CoverageGreen.copy(alpha = 0.14f))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.AccessibilityNew, Color(0xFF81E0A5), Color(0xFF81E0A5).copy(alpha = 0.16f))
+            else ExpertiseVisualStyle(Icons.Rounded.AccessibilityNew, CoverageGreen, CoverageGreen.copy(alpha = 0.14f))
 
         s.contains("audio") || s.contains("sound") || s.contains("voice") ->
-            ExpertiseVisualStyle(Icons.Rounded.GraphicEq, DeepForestGreen, MutedSage.copy(alpha = 0.30f))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.GraphicEq, DarkMintPrimary, DarkMintPrimary.copy(alpha = 0.16f))
+            else ExpertiseVisualStyle(Icons.Rounded.GraphicEq, DeepForestGreen, MutedSage.copy(alpha = 0.30f))
 
         s.contains("garden") || s.contains("botany") || s.contains("plant") || s.contains("ecolog") ->
-            ExpertiseVisualStyle(Icons.Rounded.Spa, BotanicalGreen, MutedSage.copy(alpha = 0.28f))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.Spa, Color(0xFF9CE0A8), Color(0xFF9CE0A8).copy(alpha = 0.16f))
+            else ExpertiseVisualStyle(Icons.Rounded.Spa, BotanicalGreen, MutedSage.copy(alpha = 0.28f))
 
         s.contains("research") || s.contains("data") || s.contains("sampl") || s.contains("analy") ->
-            ExpertiseVisualStyle(Icons.Rounded.Biotech, DeepForestGreen, Color(0xFFE5EEE8))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.Biotech, DarkMintPrimary, DarkMintPrimary.copy(alpha = 0.15f))
+            else ExpertiseVisualStyle(Icons.Rounded.Biotech, DeepForestGreen, Color(0xFFE5EEE8))
 
         s.contains("workshop") || s.contains("coordinat") || s.contains("outreach") || s.contains("facil") ->
-            ExpertiseVisualStyle(Icons.Rounded.Groups, SoftEarthBrown, WarmGoldenYellow.copy(alpha = 0.18f))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.Groups, WarmGoldenYellow, WarmGoldenYellow.copy(alpha = 0.15f))
+            else ExpertiseVisualStyle(Icons.Rounded.Groups, SoftEarthBrown, WarmGoldenYellow.copy(alpha = 0.18f))
 
         else ->
-            ExpertiseVisualStyle(Icons.Rounded.Psychology, DeepForestGreen, MutedSage.copy(alpha = 0.25f))
+            if (isDark) ExpertiseVisualStyle(Icons.Rounded.Psychology, DarkMintPrimary, DarkMintPrimary.copy(alpha = 0.14f))
+            else ExpertiseVisualStyle(Icons.Rounded.Psychology, DeepForestGreen, MutedSage.copy(alpha = 0.25f))
     }
 }
 
 /**
  * High-contrast, scannable visual skill badge displaying an expertise icon,
- * complementary indicator, peer endorsement count pill, and optional one-tap endorsement toggle.
+ * top-skill spotlighting, proficiency level, peer endorsement count pill,
+ * and optional one-tap endorsement toggle.
  */
 @Composable
 fun VisualSkillBadge(
     skillName: String,
     proficiency: SkillProficiency? = null,
     isComplementary: Boolean = false,
+    isTopSkill: Boolean = false,
     endorsementCount: Int = 0,
     isEndorsedByMe: Boolean = false,
     onBadgeClick: (() -> Unit)? = null,
     onToggleEndorse: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val isDark = LocalSymbiosisIsDark.current
     val style = styleForSkill(skillName)
+    val trustGreen = if (isDark) Color(0xFF7CE2A3) else CoverageGreen
+    val topGold = if (isDark) WarmGoldenYellow else ComplementaryAmber
     val borderColor = when {
-        isEndorsedByMe -> CoverageGreen
-        isComplementary -> style.accentColor.copy(alpha = 0.55f)
-        else -> style.accentColor.copy(alpha = 0.28f)
+        isEndorsedByMe -> trustGreen
+        isTopSkill -> topGold.copy(alpha = 0.85f)
+        isComplementary -> style.accentColor.copy(alpha = 0.6f)
+        else -> style.accentColor.copy(alpha = 0.30f)
     }
 
     Surface(
@@ -120,11 +139,23 @@ fun VisualSkillBadge(
                 if (onBadgeClick != null) Modifier.clickable(onClick = onBadgeClick) else Modifier
             ),
         shape = RoundedCornerShape(14.dp),
-        color = if (isEndorsedByMe) CoverageGreen.copy(alpha = 0.12f) else style.containerColor,
-        border = BorderStroke(if (isEndorsedByMe || isComplementary) 1.25.dp else 1.dp, borderColor)
+        color = when {
+            isEndorsedByMe -> trustGreen.copy(alpha = 0.14f)
+            isTopSkill -> topGold.copy(alpha = if (isDark) 0.14f else 0.12f)
+            else -> style.containerColor
+        },
+        border = BorderStroke(
+            if (isEndorsedByMe || isTopSkill || isComplementary) 1.3.dp else 1.dp,
+            borderColor
+        )
     ) {
         Row(
-            modifier = Modifier.padding(start = 10.dp, end = if (onToggleEndorse != null) 6.dp else 10.dp, top = 7.dp, bottom = 7.dp),
+            modifier = Modifier.padding(
+                start = 10.dp,
+                end = if (onToggleEndorse != null) 6.dp else 10.dp,
+                top = 7.dp,
+                bottom = 7.dp
+            ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -138,15 +169,40 @@ fun VisualSkillBadge(
             Text(
                 text = skillName,
                 style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = if (isComplementary || isEndorsedByMe) FontWeight.SemiBold else FontWeight.Medium
+                    fontWeight = if (isTopSkill || isComplementary || isEndorsedByMe) FontWeight.SemiBold else FontWeight.Medium
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
 
+            if (isTopSkill) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = topGold.copy(alpha = 0.22f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Star,
+                            contentDescription = "Top endorsed skill",
+                            tint = topGold,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Text(
+                            text = "Top",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (isDark) topGold else SoftEarthBrown
+                        )
+                    }
+                }
+            }
+
             if (proficiency != null) {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = style.accentColor.copy(alpha = 0.14f)
+                    color = style.accentColor.copy(alpha = 0.16f)
                 ) {
                     Text(
                         text = proficiency.label,
@@ -161,15 +217,15 @@ fun VisualSkillBadge(
                 Icon(
                     imageVector = Icons.Rounded.AutoAwesome,
                     contentDescription = "Complements your profile",
-                    tint = ComplementaryAmber,
+                    tint = topGold,
                     modifier = Modifier.size(14.dp)
                 )
             }
 
-            if (endorsementCount > 0 && onToggleEndorse == null) {
+            if (onToggleEndorse == null && endorsementCount > 0) {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = CoverageGreen.copy(alpha = 0.16f)
+                    color = trustGreen.copy(alpha = 0.18f)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -179,13 +235,13 @@ fun VisualSkillBadge(
                         Icon(
                             imageVector = Icons.Rounded.Verified,
                             contentDescription = "$endorsementCount peer endorsements",
-                            tint = CoverageGreen,
+                            tint = trustGreen,
                             modifier = Modifier.size(12.dp)
                         )
                         Text(
                             text = "$endorsementCount",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = CoverageGreen
+                            color = trustGreen
                         )
                     }
                 }
@@ -196,10 +252,10 @@ fun VisualSkillBadge(
                 Surface(
                     onClick = onToggleEndorse,
                     shape = RoundedCornerShape(50),
-                    color = if (isEndorsedByMe) CoverageGreen else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    color = if (isEndorsedByMe) trustGreen else MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
                     border = BorderStroke(
                         1.dp,
-                        if (isEndorsedByMe) CoverageGreen else MaterialTheme.colorScheme.outline
+                        if (isEndorsedByMe) trustGreen else MaterialTheme.colorScheme.outline
                     ),
                     modifier = Modifier.testTag("endorse_skill_${slug}")
                 ) {
@@ -211,7 +267,7 @@ fun VisualSkillBadge(
                         Icon(
                             imageVector = if (isEndorsedByMe) Icons.Rounded.ThumbUp else Icons.Rounded.ThumbUpOffAlt,
                             contentDescription = if (isEndorsedByMe) "Remove endorsement for $skillName" else "Endorse $skillName",
-                            tint = if (isEndorsedByMe) Color.White else MaterialTheme.colorScheme.primary,
+                            tint = if (isEndorsedByMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(13.dp)
                         )
                         Text(
@@ -221,7 +277,7 @@ fun VisualSkillBadge(
                                 else -> "Endorse"
                             },
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (isEndorsedByMe) Color.White else MaterialTheme.colorScheme.primary
+                            color = if (isEndorsedByMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -232,7 +288,7 @@ fun VisualSkillBadge(
 
 /**
  * Reusable scannable expertise badges layout for user profiles.
- * Highlights complementary skills, expertise icons, and Firestore-backed peer endorsements.
+ * Automatically surfaces top-endorsed skills first with trust endorsement counts.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -249,6 +305,20 @@ fun ProfileSkillBadgesSection(
 ) {
     val cleanSkills = skills.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
     if (cleanSkills.isEmpty()) return
+
+    val rankedSkills = cleanSkills.sortedWith(
+        compareByDescending<String> { skill ->
+            endorsementsBySkill[SkillEndorsement.normalizeSkillKey(skill)]?.count ?: 0
+        }.thenByDescending { skill ->
+            val rawLevel = skillProficiencies[skill]
+                ?: skillProficiencies.entries.firstOrNull { it.key.equals(skill, ignoreCase = true) }?.value
+            rawLevel?.let { SkillProficiency.safeParse(it).level } ?: 2
+        }
+    )
+
+    val maxEndorsements = rankedSkills.maxOfOrNull { skill ->
+        endorsementsBySkill[SkillEndorsement.normalizeSkillKey(skill)]?.count ?: 0
+    } ?: 0
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -277,18 +347,22 @@ fun ProfileSkillBadgesSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            cleanSkills.forEach { skill ->
+            rankedSkills.forEachIndexed { idx, skill ->
                 val normalized = SkillEndorsement.normalizeSkillKey(skill)
                 val summary = endorsementsBySkill[normalized]
+                val count = summary?.count ?: 0
                 val isComp = complementarySkills.any { it.equals(skill, ignoreCase = true) }
                 val rawLevel = skillProficiencies[skill]
                     ?: skillProficiencies.entries.firstOrNull { it.key.equals(skill, ignoreCase = true) }?.value
                 val proficiency = rawLevel?.let { SkillProficiency.safeParse(it) }
+                val isTop = (count > 0 && count == maxEndorsements) ||
+                    (idx == 0 && (proficiency?.level ?: 0) >= 3)
                 VisualSkillBadge(
                     skillName = skill,
                     proficiency = proficiency,
                     isComplementary = isComp,
-                    endorsementCount = summary?.count ?: 0,
+                    isTopSkill = isTop,
+                    endorsementCount = count,
                     isEndorsedByMe = summary?.endorsedByCurrentUser ?: false,
                     onBadgeClick = onTapSkillFilter?.let { cb -> { cb(skill) } },
                     onToggleEndorse = onToggleEndorseSkill?.let { cb -> { cb(skill) } }

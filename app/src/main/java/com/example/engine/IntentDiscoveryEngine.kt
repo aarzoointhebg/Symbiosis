@@ -1,11 +1,21 @@
 package com.example.engine
 
+import com.example.model.CommunityPost
 import com.example.model.CommunityProfile
 import com.example.model.DiscoveryCategory
+import com.example.model.IntentPostRecommendation
 import com.example.model.IntentSearchResult
 import com.example.model.Mission
 import com.example.model.StructuredIntent
 import kotlin.math.sqrt
+
+data class MissionDraftFromPost(
+    val title: String,
+    val description: String,
+    val objective: String,
+    val requiredCapabilities: List<String>,
+    val optionalCapabilities: List<String>
+)
 
 /**
  * Intent-Based Semantic Mission Discovery Engine.
@@ -329,5 +339,179 @@ object IntentDiscoveryEngine {
         val magA = sqrt(a.values.sumOf { (it * it).toDouble() }.toFloat())
         val magB = sqrt(b.values.sumOf { (it * it).toDouble() }.toFloat())
         return if (magA == 0f || magB == 0f) 0f else (dot / (magA * magB)).coerceIn(0f, 1f)
+    }
+
+    /**
+     * Section 19.3: Intent-Aware Community Discovery.
+     * Interprets underlying mission & problem purpose rather than shallow keyword overlap,
+     * surfacing posts where someone discusses the same problem, pursues a complementary goal,
+     * or requests capabilities the seeker brings.
+     */
+    fun discoverRelevantPosts(
+        queryOrFocus: String,
+        posts: List<CommunityPost>,
+        seekerProfile: CommunityProfile?,
+        seekerMissions: List<Mission>,
+        followedTopics: Set<String> = emptySet(),
+        aiIntent: StructuredIntent? = null
+    ): List<IntentPostRecommendation> {
+        val seekerCaps = seekerProfile?.allCapabilities().orEmpty()
+        val seekerNeeds = seekerProfile?.supportWanted.orEmpty()
+        val seekerAmbitionText = buildString {
+            if (queryOrFocus.isNotBlank()) {
+                append(queryOrFocus).append(' ')
+            }
+            seekerProfile?.let { p ->
+                append(p.ambitions.joinToString(" ")).append(' ')
+                append(p.interests.joinToString(" ")).append(' ')
+                append(p.headline).append(' ')
+            }
+            seekerMissions.take(3).forEach { m ->
+                append(m.title).append(' ').append(m.objective).append(' ')
+            }
+            aiIntent?.let {
+                append(it.mainObjective).append(' ')
+                append(it.broaderPurpose).append(' ')
+            }
+        }.trim()
+
+        val focusVector = buildConceptVector(seekerAmbitionText)
+        val focusIntent = aiIntent ?: extractLocalStructuredIntent(
+            title = queryOrFocus.ifBlank { seekerProfile?.ambitions?.firstOrNull().orEmpty() },
+            description = seekerAmbitionText
+        )
+
+        return posts.mapNotNull { post ->
+            val postFullText = listOf(
+                post.title,
+                post.body,
+                post.missionTitle,
+                post.capabilityTags.joinToString(" "),
+                post.requestedCapabilities.joinToString(" ")
+            ).joinToString(" ")
+
+            val postVector = buildConceptVector(postFullText)
+            val postIntent = extractLocalStructuredIntent(post.title, post.body)
+
+            val conceptSim = cosineSimilarity(focusVector.conceptWeights, postVector.conceptWeights)
+            val tokenSim = cosineSimilarity(focusVector.tokenWeights, postVector.tokenWeights)
+
+            val focusPrimary = focusVector.dominantConcept
+            val postPrimary = postVector.dominantConcept
+            val isComplementaryCluster = focusPrimary != null && postPrimary != null &&
+                focusPrimary != postPrimary &&
+                conceptClusters.firstOrNull { it.conceptId == focusPrimary }
+                    ?.complementaryClusters?.contains(postPrimary) == true
+
+            // Capabilities you hold that this post explicitly asks for
+            val needsYouHold = post.requestedCapabilities.filter { req ->
+                seekerCaps.any { mine -> ComplementarityEngine.capabilitiesMatch(req, mine) }
+            }.distinct()
+
+            // Capabilities the post offers that match what you're seeking/interested in
+            val matchingCaps = post.capabilityTags.filter { tag ->
+                seekerNeeds.any { need -> ComplementarityEngine.capabilitiesMatch(tag, need) } ||
+                    seekerCaps.any { mine -> ComplementarityEngine.capabilitiesMatch(tag, mine) } ||
+                    followedTopics.any { topic ->
+                        tag.contains(topic, ignoreCase = true) || topic.contains(tag, ignoreCase = true)
+                    }
+            }.distinct()
+
+            val sameMission = post.missionId.isNotBlank() &&
+                seekerMissions.any { it.id == post.missionId || it.title.equals(post.missionTitle, ignoreCase = true) }
+
+            val topicHit = followedTopics.any { topic ->
+                post.capabilityTags.any { it.equals(topic, ignoreCase = true) } ||
+                    post.title.contains(topic, ignoreCase = true) ||
+                    post.body.contains(topic, ignoreCase = true)
+            }
+
+            var score = (conceptSim * 0.42f + tokenSim * 0.28f)
+            if (focusPrimary != null && focusPrimary == postPrimary) score += 0.20f
+            if (isComplementaryCluster) score += 0.22f
+            if (needsYouHold.isNotEmpty()) score += 0.25f
+            if (matchingCaps.isNotEmpty()) score += 0.14f
+            if (sameMission) score += 0.18f
+            if (topicHit) score += 0.15f
+            if (post.categoryEnum() == com.example.model.PostCategory.LOOKING_FOR_COLLABORATORS && needsYouHold.isNotEmpty()) {
+                score += 0.10f
+            }
+
+            val finalScore = (score * 100).toInt().coerceIn(0, 98)
+            if (queryOrFocus.isNotBlank() && finalScore < 22 && needsYouHold.isEmpty() && !topicHit) {
+                return@mapNotNull null
+            }
+            if (queryOrFocus.isBlank() && finalScore < 26 && needsYouHold.isEmpty() && !sameMission && !topicHit) {
+                return@mapNotNull null
+            }
+
+            val whyRelevant = buildString {
+                when {
+                    needsYouHold.isNotEmpty() -> {
+                        append("${post.authorName} is looking for ${needsYouHold.joinToString(", ")}, which aligns directly with strengths you bring.")
+                    }
+                    isComplementaryCluster -> {
+                        append("Complementary purpose in ${postIntent.problemDomain}: pairing this work strengthens ${focusIntent.problemDomain}.")
+                    }
+                    sameMission -> {
+                        append("Directly connected to your mission \"${post.missionTitle}\".")
+                    }
+                    focusPrimary != null && focusPrimary == postPrimary -> {
+                        append("Addresses the same core goal: ${postIntent.mainObjective}")
+                    }
+                    topicHit -> {
+                        append("Matches a capability topic you follow (${matchingCaps.ifEmpty { followedTopics.take(2) }.joinToString(", ")}).")
+                    }
+                    else -> {
+                        append("Aligned across ${postIntent.problemDomain} with shared interest in ${matchingCaps.ifEmpty { post.capabilityTags.take(2) }.joinToString(", ").ifBlank { "collaborative impact" }}.")
+                    }
+                }
+            }
+
+            IntentPostRecommendation(
+                post = post,
+                relevancePercent = finalScore.coerceAtLeast(35),
+                whyRelevant = whyRelevant,
+                matchingCapabilities = matchingCaps,
+                complementaryNeedsYouHold = needsYouHold
+            )
+        }.sortedByDescending { it.relevancePercent }
+    }
+
+    /**
+     * Section 19.5: Extract a structured Mission draft from a Community Post
+     * (either directly or merged with Gemini AI suggestions).
+     */
+    fun extractMissionDraftFromPost(post: CommunityPost): MissionDraftFromPost {
+        val localIntent = extractLocalStructuredIntent(
+            title = post.title,
+            description = post.body,
+            objective = post.missionTitle
+        )
+        val combinedRequired = (post.requestedCapabilities + localIntent.requiredCapabilities)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase() }
+            .take(5)
+
+        val combinedOptional = (post.capabilityTags - combinedRequired.toSet())
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase() }
+            .take(4)
+
+        val cleanTitle = post.title
+            .removePrefix("Idea:")
+            .removePrefix("Update:")
+            .trim()
+            .take(110)
+
+        return MissionDraftFromPost(
+            title = cleanTitle.ifBlank { "Community Collaboration Mission" },
+            description = post.body.trim().take(800),
+            objective = localIntent.mainObjective.take(280),
+            requiredCapabilities = combinedRequired.ifEmpty { listOf("Collaborative research", "Creative design") },
+            optionalCapabilities = combinedOptional
+        )
     }
 }

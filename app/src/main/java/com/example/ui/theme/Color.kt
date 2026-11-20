@@ -30,8 +30,22 @@ val GapTerracotta = Color(0xFFA64B3A)
 val GapSoftSurface = Color(0xFFFBEAE6)
 
 // Dark Theme Surface Palette
-val DarkForestBackground = Color(0xFF121C16)
-val DarkForestSurface = Color(0xFF1A2820)
-val DarkForestSurfaceVariant = Color(0xFF25372C)
-val DarkCreamText = Color(0xFFF4EFE4)
-val DarkSageText = Color(0xFFC7D4C0)
+val DarkForestBackground = Color(0xFF101914)
+val DarkForestSurface = Color(0xFF19271F)
+val DarkForestSurfaceVariant = Color(0xFF23352A)
+val DarkCreamText = Color(0xFFF6F2E9)
+val DarkSageText = Color(0xFFCDE0CA)
+val DarkMintPrimary = Color(0xFFA7DAB7)
+
+// High-Contrast Dark Theme Palette
+val HighContrastDarkBackground = Color(0xFF060B08)
+val HighContrastDarkSurface = Color(0xFF0E1712)
+val HighContrastDarkSurfaceVariant = Color(0xFF192820)
+val HighContrastDarkOutline = Color(0xFF8FB89D)
+
+// Pure White Mode Surface Palette
+val PureWhiteBackground = Color(0xFFFFFFFF)
+val PureWhiteSurface = Color(0xFFFFFFFF)
+val PureWhiteSurfaceVariant = Color(0xFFF3F6F3)
+val PureWhiteOutline = Color(0xFFD5DED6)
+

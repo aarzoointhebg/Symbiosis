@@ -68,11 +68,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.ExtractedCapabilityTags
 import com.example.model.AccessibilitySettings
+import com.example.model.ActivityFeedItem
 import com.example.model.AmbitionHorizon
 import com.example.model.AmbitionPriority
+import com.example.model.AppThemeMode
 import com.example.model.AvailabilityWindow
 import com.example.model.CollaborationInvitation
 import com.example.model.CollaborationStyle
+import com.example.model.CommunityComment
+import com.example.model.CommunityPost
 import com.example.model.CommunityProfile
 import com.example.model.InvitationStatus
 import com.example.model.PrivateSettings
@@ -84,6 +88,7 @@ import com.example.model.UiState
 import com.example.model.UserAmbition
 import com.example.model.UserProfile
 import com.example.model.toUserProfile
+import com.example.ui.components.ActivityFeedSection
 import com.example.ui.components.AiBadge
 import com.example.ui.components.CapabilityTagGroup
 import com.example.ui.components.InfoBannerCard
@@ -92,6 +97,10 @@ import com.example.ui.components.ProfileSkillBadgesSection
 import com.example.ui.components.SafetyAndDignityNotice
 import com.example.ui.components.SectionHeading
 import com.example.ui.components.UserProfileForm
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.BookmarkRemove
+import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.ui.text.style.TextOverflow
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -110,6 +119,9 @@ fun MySpaceAndCapabilitiesScreen(
     accessibilitySettings: AccessibilitySettings,
     aiTagState: UiState<ExtractedCapabilityTags>?,
     ownEndorsementsBySkill: Map<String, SkillEndorsementSummary> = emptyMap(),
+    activityFeed: List<ActivityFeedItem> = emptyList(),
+    bookmarkedPosts: List<CommunityPost> = emptyList(),
+    commentsByPostId: Map<String, List<CommunityComment>> = emptyMap(),
     isCloudSynced: Boolean,
     onSaveUserProfile: (UserProfile) -> Unit,
     onSaveProfile: (CommunityProfile) -> Unit,
@@ -121,8 +133,13 @@ fun MySpaceAndCapabilitiesScreen(
     onUnblockUser: (String) -> Unit,
     onSetTextScale: (Float) -> Unit,
     onSetHighContrast: (Boolean) -> Unit,
+    onSetThemeMode: (AppThemeMode) -> Unit = {},
     onSetReducedMotion: (Boolean) -> Unit,
     onSetPreferredComms: (String) -> Unit,
+    onOpenChatWithPeerId: (String) -> Unit = {},
+    onOpenBookmarkedPost: (CommunityPost) -> Unit = {},
+    onTogglePostBookmark: (CommunityPost) -> Unit = {},
+    onOpenUserProfile: () -> Unit = {},
     onSignOut: () -> Unit,
     onSwitchToGoogleSignIn: () -> Unit,
     onStartOnboarding: () -> Unit
@@ -195,19 +212,27 @@ fun MySpaceAndCapabilitiesScreen(
                     ownProfile = ownProfile,
                     accountEmail = accountEmail,
                     savedPossibilities = savedPossibilities,
+                    bookmarkedPosts = bookmarkedPosts,
+                    commentsByPostId = commentsByPostId,
                     invitations = invitations,
                     privateSettings = privateSettings,
                     safetyBlocks = safetyBlocks,
                     accessibilitySettings = accessibilitySettings,
                     ownEndorsementsBySkill = ownEndorsementsBySkill,
+                    activityFeed = activityFeed,
                     isCloudSynced = isCloudSynced,
                     onUpdateVisibility = { vis -> onSaveProfile(ownProfile.copy(visibility = vis.name)) },
                     onSavePrivateSettings = onSavePrivateSettings,
                     onUnblockUser = onUnblockUser,
                     onSetTextScale = onSetTextScale,
                     onSetHighContrast = onSetHighContrast,
+                    onSetThemeMode = onSetThemeMode,
                     onSetReducedMotion = onSetReducedMotion,
                     onSetPreferredComms = onSetPreferredComms,
+                    onOpenChatWithPeerId = onOpenChatWithPeerId,
+                    onOpenBookmarkedPost = onOpenBookmarkedPost,
+                    onTogglePostBookmark = onTogglePostBookmark,
+                    onOpenUserProfile = onOpenUserProfile,
                     onSignOut = onSignOut,
                     onSwitchToGoogleSignIn = onSwitchToGoogleSignIn,
                     onOpenMatchingForm = { activeTab = 0 },
@@ -778,19 +803,27 @@ private fun MySpaceOverviewSection(
     ownProfile: CommunityProfile,
     accountEmail: String?,
     savedPossibilities: List<SavedPossibility>,
+    bookmarkedPosts: List<CommunityPost> = emptyList(),
+    commentsByPostId: Map<String, List<CommunityComment>> = emptyMap(),
     invitations: List<CollaborationInvitation>,
     privateSettings: PrivateSettings,
     safetyBlocks: List<SafetyBlock>,
     accessibilitySettings: AccessibilitySettings,
     ownEndorsementsBySkill: Map<String, SkillEndorsementSummary> = emptyMap(),
+    activityFeed: List<ActivityFeedItem> = emptyList(),
     isCloudSynced: Boolean,
     onUpdateVisibility: (ProfileVisibility) -> Unit,
     onSavePrivateSettings: (PrivateSettings) -> Unit,
     onUnblockUser: (String) -> Unit,
     onSetTextScale: (Float) -> Unit,
     onSetHighContrast: (Boolean) -> Unit,
+    onSetThemeMode: (AppThemeMode) -> Unit,
     onSetReducedMotion: (Boolean) -> Unit,
     onSetPreferredComms: (String) -> Unit,
+    onOpenChatWithPeerId: (String) -> Unit,
+    onOpenBookmarkedPost: (CommunityPost) -> Unit,
+    onTogglePostBookmark: (CommunityPost) -> Unit,
+    onOpenUserProfile: () -> Unit,
     onSignOut: () -> Unit,
     onSwitchToGoogleSignIn: () -> Unit,
     onOpenMatchingForm: () -> Unit,
@@ -823,7 +856,7 @@ private fun MySpaceOverviewSection(
                                 if (!accountEmail.isNullOrBlank()) append(" • $accountEmail")
                             }
                         } else {
-                            "Local Guest / Email OTP Session"
+                            "Local Guest Workspace"
                         },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.secondary
@@ -868,8 +901,8 @@ private fun MySpaceOverviewSection(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("${savedPossibilities.size}", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-                        Text("Saved Ideas", style = MaterialTheme.typography.labelSmall)
+                        Text("${bookmarkedPosts.size}", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                        Text("Saved Threads", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -896,8 +929,21 @@ private fun MySpaceOverviewSection(
                 }
             }
 
+            Button(
+                onClick = onOpenUserProfile,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("open_user_profile_screen_button"),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Rounded.Person, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Open User Profile (Skills, Missions & Bookmarks)")
+            }
+
             if (!isCloudSynced) {
-                Button(
+                OutlinedButton(
                     onClick = onSwitchToGoogleSignIn,
                     modifier = Modifier.fillMaxWidth().height(48.dp).testTag("myspace_google_sync_button")
                 ) {
@@ -1033,6 +1079,26 @@ private fun MySpaceOverviewSection(
                 )
             }
 
+            Text("Display Theme", style = MaterialTheme.typography.labelLarge)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                AppThemeMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = accessibilitySettings.themeMode == mode,
+                        onClick = { onSetThemeMode(mode) },
+                        label = { Text(mode.label) },
+                        modifier = Modifier.testTag("theme_mode_${mode.name.lowercase()}")
+                    )
+                }
+            }
+            Text(
+                text = accessibilitySettings.themeMode.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1040,7 +1106,7 @@ private fun MySpaceOverviewSection(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("High-Contrast Mode", style = MaterialTheme.typography.bodyMedium)
-                    Text("Strengthens text and border contrast across screens.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Strengthens contrast for Dark, White, or Cream themes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(
                     checked = accessibilitySettings.highContrastMode,
@@ -1082,6 +1148,145 @@ private fun MySpaceOverviewSection(
                         onClick = { onSetPreferredComms(opt) },
                         label = { Text(opt) }
                     )
+                }
+            }
+        }
+    }
+
+    // Activity & Collaboration Trust Feed
+    ActivityFeedSection(
+        items = activityFeed,
+        title = "Your Activity & Endorsement Feed",
+        subtitle = "Recent collaboration milestones, accepted chats & received endorsements",
+        maxItems = 8,
+        onOpenChatWithPeerId = onOpenChatWithPeerId
+    )
+
+    // Saved / Bookmarked Community Threads
+    Card(
+        modifier = Modifier.testTag("myspace_saved_threads_card"),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Rounded.Forum, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Saved Community Threads", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                if (bookmarkedPosts.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(50)
+                    ) {
+                        Text(
+                            text = "${bookmarkedPosts.size}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
+            if (bookmarkedPosts.isEmpty()) {
+                Text(
+                    text = "Tap the Bookmark icon on any Community post to save favorite discussions, questions, and opportunities right here in your profile.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                bookmarkedPosts.forEach { post ->
+                    val replyCount = commentsByPostId[post.id]?.size ?: 0
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        text = post.categoryEnum().shortLabel,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "${post.authorName} • $replyCount ${if (replyCount == 1) "reply" else "replies"}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                text = post.title,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = post.body,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedButton(
+                                    onClick = { onOpenBookmarkedPost(post) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("open_bookmarked_post_${post.id}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Open Thread")
+                                }
+                                IconButton(
+                                    onClick = { onTogglePostBookmark(post) },
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .testTag("remove_bookmarked_post_${post.id}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.BookmarkRemove,
+                                        contentDescription = "Remove saved thread",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -403,3 +403,119 @@ test("CollaborationMessages enforce participant isolation, anti-spoofing, and im
     aliceDb.collection("collaboration_messages").doc("msg_1").delete()
   );
 });
+
+test("CommunityPosts, Comments, Bookmarks, FollowedTopics, and Reports enforce zero-trust rules", async () => {
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const ts = new Date(Date.now() - 2000);
+
+  await assertFails(unauthDb.collection("community_posts").where("visibility", "==", "COMMUNITY").get());
+
+  // Valid CommunityPost creation by Alice
+  await assertSucceeds(
+    aliceDb.collection("community_posts").doc("post_1").set({
+      authorId: ALICE_UID,
+      authorName: "Aarav",
+      authorHeadline: "Systems builder",
+      category: "LOOKING_FOR_COLLABORATORS",
+      title: "Building solar rainwater sensors for community gardens",
+      body: "Looking for someone skilled in visual storytelling or community outreach to join our weekend pilot.",
+      capabilityTags: ["Basic electronics", "Programming"],
+      requestedCapabilities: ["Visual design", "Workshop coordination"],
+      missionId: "mission_community_env",
+      missionTitle: "Neighborhood Environmental Sensor Network",
+      communityLocationTag: "East Block Garden",
+      shareLocationTag: true,
+      linkUrl: "",
+      imageUri: "",
+      visibility: "COMMUNITY",
+      appreciatorUids: [],
+      createdAt: ts,
+      updatedAt: ts,
+    })
+  );
+
+  // Bob can read COMMUNITY posts and toggle ONLY his own UID in appreciatorUids
+  await assertSucceeds(
+    bobDb.collection("community_posts").where("visibility", "==", "COMMUNITY").get()
+  );
+  await assertSucceeds(
+    bobDb.collection("community_posts").doc("post_1").update({
+      appreciatorUids: [BOB_UID],
+      updatedAt: new Date(Date.now() - 1000),
+    })
+  );
+
+  // Bob cannot hijack post body or forge someone else's UID in appreciatorUids
+  await assertFails(
+    bobDb.collection("community_posts").doc("post_1").update({
+      title: "Hijacked title",
+      updatedAt: new Date(Date.now() - 500),
+    })
+  );
+  await assertFails(
+    bobDb.collection("community_posts").doc("post_1").update({
+      appreciatorUids: [BOB_UID, CHARLIE_UID],
+      updatedAt: new Date(Date.now() - 500),
+    })
+  );
+
+  // Comments: Bob can comment, cannot spoof Alice, cannot edit, only Bob can delete
+  await assertSucceeds(
+    bobDb.collection("community_comments").doc("cmt_1").set({
+      postId: "post_1",
+      authorId: BOB_UID,
+      authorName: "Mira",
+      body: "I would love to design clear botanical diagrams for residents!",
+      replyToAuthor: "Aarav",
+      createdAt: ts,
+    })
+  );
+  await assertFails(
+    bobDb.collection("community_comments").doc("cmt_spoof").set({
+      postId: "post_1",
+      authorId: ALICE_UID,
+      authorName: "Aarav",
+      body: "Spoofed comment",
+      createdAt: ts,
+    })
+  );
+  await assertFails(aliceDb.collection("community_comments").doc("cmt_1").delete());
+  await assertSucceeds(bobDb.collection("community_comments").doc("cmt_1").delete());
+
+  // Bookmarks & Followed Topics: owner-scoped
+  await assertSucceeds(
+    bobDb.collection("users").doc(BOB_UID).collection("post_bookmarks").doc("post_1").set({
+      userId: BOB_UID,
+      postId: "post_1",
+      postTitle: "Building solar rainwater sensors",
+      createdAt: ts,
+    })
+  );
+  await assertFails(
+    aliceDb.collection("users").doc(BOB_UID).collection("post_bookmarks").get()
+  );
+  await assertSucceeds(
+    bobDb.collection("users").doc(BOB_UID).collection("followed_topics").doc("topic_env").set({
+      userId: BOB_UID,
+      topic: "Environmental technology",
+      createdAt: ts,
+    })
+  );
+
+  // Safety reports: reporter-scoped, cannot self-report
+  await assertSucceeds(
+    bobDb.collection("community_reports").doc("rep_1").set({
+      reporterId: BOB_UID,
+      postId: "post_1",
+      targetAuthorId: ALICE_UID,
+      reason: "Testing moderation safeguard",
+      createdAt: ts,
+    })
+  );
+  await assertFails(
+    aliceDb.collection("community_reports").doc("rep_1").get()
+  );
+});
+

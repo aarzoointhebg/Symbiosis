@@ -4,11 +4,16 @@ import android.content.Context
 import com.example.R
 import com.example.model.CollaborationInvitation
 import com.example.model.CollaborationMessage
+import com.example.model.CommunityComment
+import com.example.model.CommunityPost
 import com.example.model.CommunityProfile
+import com.example.model.CommunityReport
+import com.example.model.FollowedTopic
 import com.example.model.InvitationStatus
 import com.example.model.Mission
 import com.example.model.MissionMilestone
 import com.example.model.MissionStatus
+import com.example.model.PostBookmark
 import com.example.model.PrivateSettings
 import com.example.model.SafetyBlock
 import com.example.model.SavedPossibility
@@ -41,6 +46,7 @@ interface SymbiosisRepository {
     fun observeCommunityProfiles(): Flow<List<CommunityProfile>>
     fun observeAmbitions(): Flow<List<UserAmbition>>
     fun observeCommunityMissions(): Flow<List<Mission>>
+    fun observeUserMemberMissions(): Flow<List<Mission>>
     fun observeInvitations(): Flow<List<CollaborationInvitation>>
     fun observeMilestones(missionId: String): Flow<List<MissionMilestone>>
     fun observeSavedPossibilities(): Flow<List<SavedPossibility>>
@@ -48,13 +54,23 @@ interface SymbiosisRepository {
     fun observePrivateSettings(): Flow<PrivateSettings?>
     fun observeSkillEndorsements(): Flow<List<SkillEndorsement>>
     fun observeCollaborationMessages(): Flow<List<CollaborationMessage>>
+    fun observeCommunityPosts(): Flow<List<CommunityPost>>
+    fun observeCommunityComments(): Flow<List<CommunityComment>>
+    fun observeBookmarkedPostIds(): Flow<Set<String>>
+    fun observePostBookmarks(): Flow<List<PostBookmark>>
+    fun observeFollowedTopics(): Flow<List<FollowedTopic>>
 
     suspend fun saveProfile(profile: CommunityProfile): Result<Unit>
     suspend fun savePrivateSettings(settings: PrivateSettings): Result<Unit>
     suspend fun upsertAmbition(ambition: UserAmbition): Result<Unit>
     suspend fun deleteAmbition(ambitionId: String): Result<Unit>
     suspend fun createMission(mission: Mission, initialMilestones: List<Pair<String, String>> = emptyList()): Result<String>
-    suspend fun updateMissionProgress(missionId: String, progressPercent: Long, status: MissionStatus): Result<Unit>
+    suspend fun updateMissionProgress(
+        missionId: String,
+        progressPercent: Long,
+        status: MissionStatus,
+        updateStatus: Boolean = true
+    ): Result<Unit>
     suspend fun toggleMilestone(missionId: String, milestoneId: String, completed: Boolean): Result<Unit>
     suspend fun sendInvitation(invitation: CollaborationInvitation): Result<Unit>
     suspend fun respondToInvitation(invitationId: String, missionId: String, newStatus: InvitationStatus): Result<Unit>
@@ -74,6 +90,12 @@ interface SymbiosisRepository {
         body: String,
         contextLabel: String
     ): Result<Unit>
+    suspend fun createCommunityPost(post: CommunityPost): Result<String>
+    suspend fun togglePostAppreciation(post: CommunityPost): Result<Boolean>
+    suspend fun addCommunityComment(comment: CommunityComment): Result<Unit>
+    suspend fun togglePostBookmark(post: CommunityPost): Result<Boolean>
+    suspend fun toggleFollowTopic(topic: String): Result<Boolean>
+    suspend fun reportCommunityPost(post: CommunityPost, reason: String): Result<Unit>
 }
 
 /**
@@ -146,6 +168,21 @@ class FirestoreSymbiosisRepository(
                 .whereEqualTo("visibility", "COMMUNITY")
                 .snapshots()
                 .map { snap -> snap.toObjects(Mission::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) }
+                .catch { error -> logFlowError(error, OperationType.LIST, path, uid); throw error }
+        )
+    }
+
+    override fun observeUserMemberMissions(): Flow<List<Mission>> = flow {
+        val uid = requireActiveUid()
+        val path = "missions"
+        emitAll(
+            db.collection("missions")
+                .whereArrayContains("memberUids", uid)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(Mission::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedByDescending { it.updatedAt?.toDate()?.time ?: it.createdAt?.toDate()?.time ?: 0L }
+                }
                 .catch { error -> logFlowError(error, OperationType.LIST, path, uid); throw error }
         )
     }
@@ -232,6 +269,71 @@ class FirestoreSymbiosisRepository(
                 .map { snap ->
                     snap.toObjects(CollaborationMessage::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
                         .sortedBy { it.createdAt?.toDate()?.time ?: Long.MAX_VALUE }
+                }
+                .catch { error -> logFlowError(error, OperationType.LIST, path, uid); throw error }
+        )
+    }
+
+    override fun observeCommunityPosts(): Flow<List<CommunityPost>> = flow {
+        val uid = requireActiveUid()
+        val path = "community_posts"
+        emitAll(
+            db.collection("community_posts")
+                .whereEqualTo("visibility", "COMMUNITY")
+                .limit(100)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(CommunityPost::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedByDescending { it.createdAt?.toDate()?.time ?: 0L }
+                }
+                .catch { error -> logFlowError(error, OperationType.LIST, path, uid); throw error }
+        )
+    }
+
+    override fun observeCommunityComments(): Flow<List<CommunityComment>> = flow {
+        val uid = requireActiveUid()
+        val path = "community_comments"
+        emitAll(
+            db.collection("community_comments")
+                .limit(200)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(CommunityComment::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedBy { it.createdAt?.toDate()?.time ?: Long.MAX_VALUE }
+                }
+                .catch { error -> logFlowError(error, OperationType.LIST, path, uid); throw error }
+        )
+    }
+
+    override fun observeBookmarkedPostIds(): Flow<Set<String>> =
+        observePostBookmarks().map { bookmarks ->
+            bookmarks.map { it.postId.ifBlank { it.id } }
+                .filter { it.isNotBlank() }
+                .toSet()
+        }
+
+    override fun observePostBookmarks(): Flow<List<PostBookmark>> = flow {
+        val uid = requireActiveUid()
+        val path = "users/$uid/post_bookmarks"
+        emitAll(
+            db.collection("users").document(uid).collection("post_bookmarks")
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(PostBookmark::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedByDescending { it.createdAt?.toDate()?.time ?: 0L }
+                }
+                .catch { error -> logFlowError(error, OperationType.LIST, path, uid); throw error }
+        )
+    }
+
+    override fun observeFollowedTopics(): Flow<List<FollowedTopic>> = flow {
+        val uid = requireActiveUid()
+        val path = "users/$uid/followed_topics"
+        emitAll(
+            db.collection("users").document(uid).collection("followed_topics")
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(FollowedTopic::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
                 }
                 .catch { error -> logFlowError(error, OperationType.LIST, path, uid); throw error }
         )
@@ -370,18 +472,20 @@ class FirestoreSymbiosisRepository(
     override suspend fun updateMissionProgress(
         missionId: String,
         progressPercent: Long,
-        status: MissionStatus
+        status: MissionStatus,
+        updateStatus: Boolean
     ): Result<Unit> {
         val path = "missions/$missionId"
         return try {
             requireActiveUid()
-            db.collection("missions").document(missionId).update(
-                mapOf(
-                    "progressPercent" to progressPercent.coerceIn(0L, 100L),
-                    "status" to status.name,
-                    "updatedAt" to FieldValue.serverTimestamp()
-                )
-            ).await()
+            val payload = buildMap<String, Any> {
+                put("progressPercent", progressPercent.coerceIn(0L, 100L))
+                if (updateStatus) {
+                    put("status", status.name)
+                }
+                put("updatedAt", FieldValue.serverTimestamp())
+            }
+            db.collection("missions").document(missionId).update(payload).await()
             Result.success(Unit)
         } catch (e: CancellationException) {
             throw e
@@ -584,6 +688,151 @@ class FirestoreSymbiosisRepository(
         }
     }
 
+    override suspend fun createCommunityPost(post: CommunityPost): Result<String> {
+        val postId = post.id.ifBlank { "post_${UUID.randomUUID().toString().replace("-", "").take(12)}" }
+        val path = "community_posts/$postId"
+        return try {
+            val uid = requireActiveUid()
+            val cleanTitle = post.title.trim()
+            val cleanBody = post.body.trim()
+            require(cleanTitle.length >= 3) { "Post title must be at least 3 characters." }
+            require(cleanBody.length >= 5) { "Share a bit more detail (at least 5 characters)." }
+            val payload = post.copy(authorId = uid, title = cleanTitle, body = cleanBody).toCreateMap()
+            db.collection("community_posts").document(postId).set(payload).await()
+            Result.success(postId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, path)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun togglePostAppreciation(post: CommunityPost): Result<Boolean> {
+        val path = "community_posts/${post.id}"
+        return try {
+            val uid = requireActiveUid()
+            val docRef = db.collection("community_posts").document(post.id)
+            val snap = docRef.get().await()
+            if (!snap.exists()) {
+                return Result.failure(IllegalStateException("SEED_POST_LOCAL_ONLY"))
+            }
+            val currentList = (snap.get("appreciatorUids") as? List<*>)
+                ?.filterIsInstance<String>()
+                .orEmpty()
+            val already = uid in currentList
+            val nextList = if (already) {
+                currentList.filterNot { it == uid }
+            } else {
+                (currentList + uid).distinct().take(200)
+            }
+            docRef.update(
+                mapOf(
+                    "appreciatorUids" to nextList,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            Result.success(!already)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, path)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun addCommunityComment(comment: CommunityComment): Result<Unit> {
+        val cmtId = "cmt_${UUID.randomUUID().toString().replace("-", "").take(12)}"
+        val path = "community_comments/$cmtId"
+        return try {
+            val uid = requireActiveUid()
+            val cleanBody = comment.body.trim().take(800)
+            require(cleanBody.isNotEmpty()) { "Comment cannot be empty." }
+            require(comment.postId.isNotBlank()) { "Post reference missing." }
+            val payload = comment.copy(authorId = uid, body = cleanBody).toCreateMap()
+            db.collection("community_comments").document(cmtId).set(payload).await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, path)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun togglePostBookmark(post: CommunityPost): Result<Boolean> {
+        val path = "users/$currentUserId/post_bookmarks/${post.id}"
+        return try {
+            val uid = requireActiveUid()
+            val docRef = db.collection("users").document(uid)
+                .collection("post_bookmarks").document(post.id)
+            val existing = docRef.get().await()
+            if (existing.exists()) {
+                docRef.delete().await()
+                Result.success(false)
+            } else {
+                docRef.set(
+                    PostBookmark(userId = uid, postId = post.id, postTitle = post.title).toCreateMap()
+                ).await()
+                Result.success(true)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, path)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun toggleFollowTopic(topic: String): Result<Boolean> {
+        val cleanTopic = topic.trim().take(80)
+        val topicId = FollowedTopic.buildTopicId(cleanTopic)
+        val path = "users/$currentUserId/followed_topics/$topicId"
+        return try {
+            val uid = requireActiveUid()
+            require(cleanTopic.isNotEmpty()) { "Topic name cannot be empty." }
+            val docRef = db.collection("users").document(uid)
+                .collection("followed_topics").document(topicId)
+            val existing = docRef.get().await()
+            if (existing.exists()) {
+                docRef.delete().await()
+                Result.success(false)
+            } else {
+                docRef.set(FollowedTopic(userId = uid, topic = cleanTopic).toCreateMap()).await()
+                Result.success(true)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, path)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun reportCommunityPost(post: CommunityPost, reason: String): Result<Unit> {
+        val repId = "rep_${UUID.randomUUID().toString().replace("-", "").take(12)}"
+        val path = "community_reports/$repId"
+        return try {
+            val uid = requireActiveUid()
+            require(post.authorId != uid) { "You cannot report your own post; you can delete or edit it instead." }
+            val cleanReason = reason.trim().ifBlank { "Community safety review requested" }.take(400)
+            require(cleanReason.length >= 3) { "Please provide a brief reason." }
+            val payload = CommunityReport(
+                reporterId = uid,
+                postId = post.id,
+                targetAuthorId = post.authorId,
+                reason = cleanReason
+            ).toCreateMap()
+            db.collection("community_reports").document(repId).set(payload).await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, path)
+            Result.failure(e)
+        }
+    }
+
     private fun logFlowError(error: Throwable, op: OperationType, path: String, uid: String) {
         val firestoreError = generateSequence(error) { it.cause }
             .filterIsInstance<FirebaseFirestoreException>()
@@ -619,7 +868,7 @@ class LocalDemoSymbiosisRepository(
         DemoSeedData.defaultSampleInvitations(currentUserId, initialDisplayName)
     )
     private val milestonesFlow = MutableStateFlow(
-        mapOf(DemoSeedData.featuredCommunityMission.id to DemoSeedData.defaultMilestones)
+        DemoSeedData.defaultMilestones.groupBy { it.missionId }
     )
     private val savedPossibilitiesFlow = MutableStateFlow<List<SavedPossibility>>(emptyList())
     private val safetyBlocksFlow = MutableStateFlow<List<SafetyBlock>>(emptyList())
@@ -673,10 +922,23 @@ class LocalDemoSymbiosisRepository(
         )
     )
 
+    private val communityPostsFlow = MutableStateFlow(DemoSeedData.sampleCommunityPosts)
+    private val communityCommentsFlow = MutableStateFlow(DemoSeedData.sampleCommunityComments)
+    private val bookmarkedPostIdsFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val followedTopicsFlow = MutableStateFlow(
+        listOf(
+            FollowedTopic(id = "accessibility_testing", userId = currentUserId, topic = "Accessibility testing"),
+            FollowedTopic(id = "programming", userId = currentUserId, topic = "Programming")
+        )
+    )
+    private val communityReportsFlow = MutableStateFlow<List<CommunityReport>>(emptyList())
+
     override fun observeOwnProfile(): Flow<CommunityProfile?> = ownProfileFlow
     override fun observeCommunityProfiles(): Flow<List<CommunityProfile>> = communityFlow
     override fun observeAmbitions(): Flow<List<UserAmbition>> = ambitionsFlow
     override fun observeCommunityMissions(): Flow<List<Mission>> = missionsFlow
+    override fun observeUserMemberMissions(): Flow<List<Mission>> =
+        missionsFlow.map { list -> list.filter { it.ownerId == currentUserId || currentUserId in it.memberUids } }
     override fun observeInvitations(): Flow<List<CollaborationInvitation>> = invitationsFlow
     override fun observeMilestones(missionId: String): Flow<List<MissionMilestone>> =
         milestonesFlow.map { it[missionId].orEmpty() }
@@ -685,6 +947,22 @@ class LocalDemoSymbiosisRepository(
     override fun observePrivateSettings(): Flow<PrivateSettings?> = privateSettingsFlow
     override fun observeSkillEndorsements(): Flow<List<SkillEndorsement>> = endorsementsFlow
     override fun observeCollaborationMessages(): Flow<List<CollaborationMessage>> = messagesFlow
+    override fun observeCommunityPosts(): Flow<List<CommunityPost>> = communityPostsFlow
+    override fun observeCommunityComments(): Flow<List<CommunityComment>> = communityCommentsFlow
+    override fun observeBookmarkedPostIds(): Flow<Set<String>> = bookmarkedPostIdsFlow
+    override fun observePostBookmarks(): Flow<List<PostBookmark>> =
+        bookmarkedPostIdsFlow.map { ids ->
+            val postsById = communityPostsFlow.value.associateBy { it.id }
+            ids.map { postId ->
+                PostBookmark(
+                    id = postId,
+                    userId = currentUserId,
+                    postId = postId,
+                    postTitle = postsById[postId]?.title ?: "Saved Community Post"
+                )
+            }
+        }
+    override fun observeFollowedTopics(): Flow<List<FollowedTopic>> = followedTopicsFlow
 
     override suspend fun saveProfile(profile: CommunityProfile): Result<Unit> {
         ownProfileFlow.value = profile.copy(id = currentUserId, userId = currentUserId)
@@ -742,11 +1020,19 @@ class LocalDemoSymbiosisRepository(
     override suspend fun updateMissionProgress(
         missionId: String,
         progressPercent: Long,
-        status: MissionStatus
+        status: MissionStatus,
+        updateStatus: Boolean
     ): Result<Unit> {
         missionsFlow.update { list ->
             list.map { m ->
-                if (m.id == missionId) m.copy(progressPercent = progressPercent, status = status.name) else m
+                if (m.id == missionId) {
+                    m.copy(
+                        progressPercent = progressPercent.coerceIn(0L, 100L),
+                        status = if (updateStatus) status.name else m.status
+                    )
+                } else {
+                    m
+                }
             }
         }
         return Result.success(Unit)
@@ -870,6 +1156,90 @@ class LocalDemoSymbiosisRepository(
             contextLabel = contextLabel.trim().take(140)
         )
         messagesFlow.update { it + msg }
+        return Result.success(Unit)
+    }
+
+    override suspend fun createCommunityPost(post: CommunityPost): Result<String> {
+        val cleanTitle = post.title.trim()
+        val cleanBody = post.body.trim()
+        if (cleanTitle.length < 3 || cleanBody.length < 5) {
+            return Result.failure(IllegalArgumentException("Please enter a title and a few details."))
+        }
+        val id = "post_${UUID.randomUUID().toString().take(8)}"
+        val created = post.copy(id = id, authorId = currentUserId, title = cleanTitle, body = cleanBody)
+        communityPostsFlow.update { listOf(created) + it }
+        return Result.success(id)
+    }
+
+    override suspend fun togglePostAppreciation(post: CommunityPost): Result<Boolean> {
+        var nowAppreciated = false
+        communityPostsFlow.update { list ->
+            list.map { item ->
+                if (item.id == post.id) {
+                    val has = currentUserId in item.appreciatorUids
+                    nowAppreciated = !has
+                    val next = if (has) item.appreciatorUids - currentUserId else (item.appreciatorUids + currentUserId).distinct()
+                    item.copy(appreciatorUids = next)
+                } else item
+            }
+        }
+        return Result.success(nowAppreciated)
+    }
+
+    override suspend fun addCommunityComment(comment: CommunityComment): Result<Unit> {
+        val cleanBody = comment.body.trim().take(800)
+        if (cleanBody.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Comment cannot be empty."))
+        }
+        val created = comment.copy(
+            id = "cmt_${UUID.randomUUID().toString().take(8)}",
+            authorId = currentUserId,
+            body = cleanBody
+        )
+        communityCommentsFlow.update { it + created }
+        return Result.success(Unit)
+    }
+
+    override suspend fun togglePostBookmark(post: CommunityPost): Result<Boolean> {
+        var bookmarked = false
+        bookmarkedPostIdsFlow.update { current ->
+            if (post.id in current) {
+                bookmarked = false
+                current - post.id
+            } else {
+                bookmarked = true
+                current + post.id
+            }
+        }
+        return Result.success(bookmarked)
+    }
+
+    override suspend fun toggleFollowTopic(topic: String): Result<Boolean> {
+        val clean = topic.trim().take(80)
+        val id = FollowedTopic.buildTopicId(clean)
+        var followed = false
+        followedTopicsFlow.update { list ->
+            if (list.any { it.id == id || it.topic.equals(clean, ignoreCase = true) }) {
+                followed = false
+                list.filterNot { it.id == id || it.topic.equals(clean, ignoreCase = true) }
+            } else {
+                followed = true
+                list + FollowedTopic(id = id, userId = currentUserId, topic = clean)
+            }
+        }
+        return Result.success(followed)
+    }
+
+    override suspend fun reportCommunityPost(post: CommunityPost, reason: String): Result<Unit> {
+        communityReportsFlow.update {
+            it + CommunityReport(
+                id = "rep_${UUID.randomUUID().toString().take(8)}",
+                reporterId = currentUserId,
+                postId = post.id,
+                targetAuthorId = post.authorId,
+                reason = reason.trim().ifBlank { "Community safety review" }
+            )
+        }
         return Result.success(Unit)
     }
 }

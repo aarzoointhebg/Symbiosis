@@ -478,11 +478,197 @@ data class CollaborationMessage(
     }
 }
 
+enum class AppThemeMode(
+    val label: String,
+    val description: String
+) {
+    CREAM("Warm Cream", "Botanical cream & forest warmth"),
+    WHITE("White Mode", "Crisp pure white daylight canvas"),
+    DARK("Dark Mode", "Low-glare deep forest night palette");
+
+    companion object {
+        fun safeParse(raw: String?): AppThemeMode =
+            entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: CREAM
+    }
+}
+
+enum class PostCategory(
+    val label: String,
+    val shortLabel: String,
+    val promptHint: String
+) {
+    IDEAS("Ideas", "Ideas", "Share concepts, inventions & creative thoughts"),
+    QUESTIONS("Questions", "Questions", "Ask the community for knowledge or guidance"),
+    LOOKING_FOR_COLLABORATORS("Looking for Collaborators", "Collaborators", "Find people with relevant skills & capabilities"),
+    PROJECT_UPDATES("Project Updates", "Updates", "Share ongoing work & milestone progress"),
+    OPPORTUNITIES("Opportunities", "Opportunities", "Announce workshops, events & open missions"),
+    RESOURCES("Resources", "Resources", "Share learning guides, tools & discoveries"),
+    ACHIEVEMENTS("Achievements", "Achievements", "Celebrate completed collaborations & milestones");
+
+    companion object {
+        fun safeParse(raw: String?): PostCategory =
+            entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: IDEAS
+    }
+}
+
+@Keep
+@IgnoreExtraProperties
+data class CommunityPost(
+    @DocumentId val id: String = "",
+    val authorId: String = "",
+    val authorName: String = "",
+    val authorHeadline: String = "",
+    val category: String = PostCategory.IDEAS.name,
+    val title: String = "",
+    val body: String = "",
+    val capabilityTags: List<String> = emptyList(),
+    val requestedCapabilities: List<String> = emptyList(),
+    val missionId: String = "",
+    val missionTitle: String = "",
+    val communityLocationTag: String = "",
+    val shareLocationTag: Boolean = false,
+    val linkUrl: String = "",
+    val imageUri: String = "",
+    val visibility: String = "COMMUNITY",
+    val appreciatorUids: List<String> = emptyList(),
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+) {
+    fun categoryEnum(): PostCategory = PostCategory.safeParse(category)
+
+    fun toCreateMap(): Map<String, Any> = mapOf(
+        "authorId" to authorId,
+        "authorName" to authorName.trim().ifBlank { "Explorer" }.take(60),
+        "authorHeadline" to authorHeadline.trim().take(140),
+        "category" to PostCategory.safeParse(category).name,
+        "title" to title.trim().take(140),
+        "body" to body.trim().take(2000),
+        "capabilityTags" to capabilityTags.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(15),
+        "requestedCapabilities" to requestedCapabilities.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(10),
+        "missionId" to missionId.trim().take(128),
+        "missionTitle" to missionTitle.trim().take(140),
+        "communityLocationTag" to if (shareLocationTag) communityLocationTag.trim().take(80) else "",
+        "shareLocationTag" to shareLocationTag,
+        "linkUrl" to linkUrl.trim().take(300),
+        "imageUri" to imageUri.trim().take(500),
+        "visibility" to if (visibility == "CONNECTIONS") "CONNECTIONS" else "COMMUNITY",
+        "appreciatorUids" to appreciatorUids.distinct().take(200),
+        "createdAt" to FieldValue.serverTimestamp(),
+        "updatedAt" to FieldValue.serverTimestamp()
+    )
+}
+
+@Keep
+@IgnoreExtraProperties
+data class CommunityComment(
+    @DocumentId val id: String = "",
+    val postId: String = "",
+    val authorId: String = "",
+    val authorName: String = "",
+    val body: String = "",
+    val replyToAuthor: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null
+) {
+    fun toCreateMap(): Map<String, Any> = mapOf(
+        "postId" to postId,
+        "authorId" to authorId,
+        "authorName" to authorName.trim().ifBlank { "Explorer" }.take(60),
+        "body" to body.trim().take(800),
+        "replyToAuthor" to replyToAuthor.trim().take(60),
+        "createdAt" to FieldValue.serverTimestamp()
+    )
+}
+
+@Keep
+@IgnoreExtraProperties
+data class PostBookmark(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val postId: String = "",
+    val postTitle: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null
+) {
+    fun toCreateMap(): Map<String, Any> = mapOf(
+        "userId" to userId,
+        "postId" to postId,
+        "postTitle" to postTitle.trim().take(140),
+        "createdAt" to FieldValue.serverTimestamp()
+    )
+}
+
+@Keep
+@IgnoreExtraProperties
+data class FollowedTopic(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val topic: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null
+) {
+    fun toCreateMap(): Map<String, Any> = mapOf(
+        "userId" to userId,
+        "topic" to topic.trim().take(80),
+        "createdAt" to FieldValue.serverTimestamp()
+    )
+
+    companion object {
+        fun buildTopicId(topic: String): String =
+            topic.trim().lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_').take(60).ifBlank { "topic" }
+    }
+}
+
+@Keep
+@IgnoreExtraProperties
+data class CommunityReport(
+    @DocumentId val id: String = "",
+    val reporterId: String = "",
+    val postId: String = "",
+    val targetAuthorId: String = "",
+    val reason: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null
+) {
+    fun toCreateMap(): Map<String, Any> = mapOf(
+        "reporterId" to reporterId,
+        "postId" to postId,
+        "targetAuthorId" to targetAuthorId,
+        "reason" to reason.trim().take(400),
+        "createdAt" to FieldValue.serverTimestamp()
+    )
+}
+
+data class IntentPostRecommendation(
+    val post: CommunityPost,
+    val relevancePercent: Int,
+    val whyRelevant: String,
+    val matchingCapabilities: List<String>,
+    val complementaryNeedsYouHold: List<String>
+)
+
+enum class ActivityEventType(val label: String) {
+    ENDORSEMENT_RECEIVED("Skill Endorsement"),
+    ENDORSEMENT_GIVEN("Endorsed a Peer"),
+    COLLABORATION_ACCEPTED("Collaboration Active"),
+    MISSION_MILESTONE("Milestone Completed"),
+    MISSION_ACCOMPLISHED("Mission Accomplished"),
+    COMMUNITY_POST("Community Contribution")
+}
+
+data class ActivityFeedItem(
+    val id: String,
+    val type: ActivityEventType,
+    val title: String,
+    val detail: String,
+    val peerName: String,
+    val badgeText: String,
+    val timestampMillis: Long,
+    val targetPeerId: String = ""
+)
+
 data class AccessibilitySettings(
     val textScale: Float = 1.0f,
     val highContrastMode: Boolean = false,
     val reducedMotion: Boolean = false,
-    val preferredComms: String = "Text & Screen-Reader Structured"
+    val preferredComms: String = "Text & Screen-Reader Structured",
+    val themeMode: AppThemeMode = AppThemeMode.CREAM
 )
 
 sealed interface UiState<out T> {
@@ -490,3 +676,4 @@ sealed interface UiState<out T> {
     data class Success<T>(val data: T) : UiState<T>
     data class Error(val message: String) : UiState<Nothing>
 }
+

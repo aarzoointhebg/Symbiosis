@@ -188,6 +188,57 @@ service cloud.firestore {
              data.createdAt is timestamp && data.createdAt <= request.time;
     }
 
+    function isValidCommunityPost(data) {
+      return data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 60 &&
+             (!('authorHeadline' in data) || (data.authorHeadline is string && data.authorHeadline.size() <= 140)) &&
+             data.category in ['IDEAS', 'QUESTIONS', 'LOOKING_FOR_COLLABORATORS', 'PROJECT_UPDATES', 'OPPORTUNITIES', 'RESOURCES', 'ACHIEVEMENTS'] &&
+             data.title is string && data.title.size() >= 3 && data.title.size() <= 140 &&
+             data.body is string && data.body.size() >= 5 && data.body.size() <= 2000 &&
+             (!('capabilityTags' in data) || isValidStringList(data.capabilityTags, 15)) &&
+             (!('requestedCapabilities' in data) || isValidStringList(data.requestedCapabilities, 10)) &&
+             (!('missionId' in data) || (data.missionId is string && data.missionId.size() <= 128)) &&
+             (!('missionTitle' in data) || (data.missionTitle is string && data.missionTitle.size() <= 140)) &&
+             (!('communityLocationTag' in data) || (data.communityLocationTag is string && data.communityLocationTag.size() <= 80)) &&
+             (!('shareLocationTag' in data) || data.shareLocationTag is bool) &&
+             (!('linkUrl' in data) || (data.linkUrl is string && data.linkUrl.size() <= 300)) &&
+             (!('imageUri' in data) || (data.imageUri is string && data.imageUri.size() <= 500)) &&
+             data.visibility in ['COMMUNITY', 'CONNECTIONS'] &&
+             data.appreciatorUids is list && data.appreciatorUids.size() <= 200 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCommunityComment(data) {
+      return data.postId is string && isValidId(data.postId) &&
+             data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 60 &&
+             data.body is string && data.body.size() >= 1 && data.body.size() <= 800 &&
+             (!('replyToAuthor' in data) || (data.replyToAuthor is string && data.replyToAuthor.size() <= 60)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidPostBookmark(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.postId is string && isValidId(data.postId) &&
+             (!('postTitle' in data) || (data.postTitle is string && data.postTitle.size() <= 140)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidFollowedTopic(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.topic is string && data.topic.size() >= 1 && data.topic.size() <= 80 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidCommunityReport(data) {
+      return data.reporterId is string && data.reporterId.size() >= 1 && data.reporterId.size() <= 128 &&
+             data.postId is string && isValidId(data.postId) &&
+             data.targetAuthorId is string && isValidId(data.targetAuthorId) &&
+             data.reason is string && data.reason.size() >= 3 && data.reason.size() <= 400 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
     // 1. Community Capability Profiles (no PII)
     match /community_profiles/{userId} {
       allow get: if isSignedIn() && isValidId(userId) && (
@@ -287,6 +338,25 @@ service cloud.firestore {
                          incoming().blockedUserId == blockedUserId &&
                          isValidSafetyBlock(incoming());
         allow delete: if isOwner(userId) && isValidId(blockedUserId);
+      }
+
+      match /post_bookmarks/{postId} {
+        allow get: if isOwner(userId) && isValidId(postId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(postId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().postId == postId &&
+                         isValidPostBookmark(incoming());
+        allow delete: if isOwner(userId) && isValidId(postId);
+      }
+
+      match /followed_topics/{topicId} {
+        allow get: if isOwner(userId) && isValidId(topicId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(topicId) &&
+                         incoming().userId == request.auth.uid &&
+                         isValidFollowedTopic(incoming());
+        allow delete: if isOwner(userId) && isValidId(topicId);
       }
     }
 
@@ -413,6 +483,63 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isSignedIn() && isValidId(messageId) &&
                        existing().senderId == request.auth.uid;
+    }
+
+    // 7. Community Posts (Section 19: ideas, questions, updates, opportunities, resources, achievements)
+    match /community_posts/{postId} {
+      allow get: if isSignedIn() && isValidId(postId) && (
+        existing().authorId == request.auth.uid || existing().visibility == 'COMMUNITY'
+      );
+      allow list: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid || resource.data.visibility == 'COMMUNITY'
+      );
+      allow create: if isSignedIn() && isValidId(postId) &&
+                       incoming().authorId == request.auth.uid &&
+                       incoming().createdAt <= request.time &&
+                       isValidCommunityPost(incoming());
+      allow update: if isSignedIn() && isValidId(postId) &&
+                       isValidCommunityPost(incoming()) &&
+                       incoming().authorId == existing().authorId &&
+                       incoming().createdAt == existing().createdAt && (
+                         (existing().authorId == request.auth.uid &&
+                          incoming().diff(existing()).affectedKeys().hasOnly([
+                            'authorName', 'authorHeadline', 'category', 'title', 'body',
+                            'capabilityTags', 'requestedCapabilities', 'missionId', 'missionTitle',
+                            'communityLocationTag', 'shareLocationTag', 'linkUrl', 'imageUri',
+                            'visibility', 'updatedAt'
+                          ])) ||
+                         (incoming().diff(existing()).affectedKeys().hasOnly(['appreciatorUids', 'updatedAt']) &&
+                          ((incoming().appreciatorUids.toSet().difference(existing().appreciatorUids.toSet()) == [request.auth.uid].toSet() &&
+                            existing().appreciatorUids.toSet().difference(incoming().appreciatorUids.toSet()).size() == 0) ||
+                           (existing().appreciatorUids.toSet().difference(incoming().appreciatorUids.toSet()) == [request.auth.uid].toSet() &&
+                            incoming().appreciatorUids.toSet().difference(existing().appreciatorUids.toSet()).size() == 0)))
+                       );
+      allow delete: if isSignedIn() && isValidId(postId) && existing().authorId == request.auth.uid;
+    }
+
+    // 8. Community Post Comments
+    match /community_comments/{commentId} {
+      allow get: if isSignedIn() && isValidId(commentId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(commentId) &&
+                       incoming().authorId == request.auth.uid &&
+                       incoming().createdAt <= request.time &&
+                       isValidCommunityComment(incoming());
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(commentId) && existing().authorId == request.auth.uid;
+    }
+
+    // 9. Community Moderation & Safety Reports
+    match /community_reports/{reportId} {
+      allow get: if isSignedIn() && isValidId(reportId) && existing().reporterId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.reporterId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(reportId) &&
+                       incoming().reporterId == request.auth.uid &&
+                       incoming().targetAuthorId != request.auth.uid &&
+                       incoming().createdAt <= request.time &&
+                       isValidCommunityReport(incoming());
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(reportId) && existing().reporterId == request.auth.uid;
     }
   }
 }

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Diversity3
 import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Hub
 import androidx.compose.material.icons.rounded.Lightbulb
@@ -56,7 +57,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.model.ActivityFeedItem
 import com.example.model.CollectiveTeamRecommendation
+import com.example.ui.components.ActivityFeedSection
 import com.example.ui.components.CoverageItemRow
 import com.example.ui.components.CoverageMeterBar
 import com.example.ui.components.DuckAndRabbitStoryCard
@@ -75,11 +78,16 @@ fun HomeScreen(
     userName: String,
     isCloudSynced: Boolean,
     featuredTeamPreview: CollectiveTeamRecommendation?,
+    recentActivityItems: List<ActivityFeedItem> = emptyList(),
     onDiscoverPossibilities: () -> Unit,
     onOpenMatchingProfileForm: () -> Unit,
+    onOpenUserProfile: () -> Unit = {},
     onSearchMatches: (String) -> Unit,
     onOpenDiscover: () -> Unit,
+    onOpenCommunity: () -> Unit,
     onOpenAmbitionMap: () -> Unit,
+    onOpenChatWithPeerId: (String) -> Unit = {},
+    onViewFullActivity: () -> Unit = {},
     onStartOnboarding: () -> Unit
 ) {
     var showHowItWorks by remember { mutableStateOf(false) }
@@ -283,13 +291,23 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
                         )
                     }
-                    Button(
-                        onClick = onOpenMatchingProfileForm,
-                        modifier = Modifier
-                            .height(48.dp)
-                            .testTag("home_open_matching_form_button")
-                    ) {
-                        Text("Edit Profile")
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Button(
+                            onClick = onOpenUserProfile,
+                            modifier = Modifier
+                                .height(48.dp)
+                                .testTag("home_open_user_profile_button")
+                        ) {
+                            Text("View Profile")
+                        }
+                        OutlinedButton(
+                            onClick = onOpenMatchingProfileForm,
+                            modifier = Modifier
+                                .height(48.dp)
+                                .testTag("home_open_matching_form_button")
+                        ) {
+                            Text("Edit Skills")
+                        }
                     }
                 }
             }
@@ -339,7 +357,59 @@ fun HomeScreen(
                 }
             }
 
-            // Founding Story & Mascots (Duck & Rabbit)
+            // Editorial 2x2 Quick-Action Grid (Section 20)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    HomeQuickActionTile(
+                        icon = Icons.Rounded.Diversity3,
+                        title = "Skill Matches",
+                        subtitle = "Find complementary peers",
+                        onClick = { onSearchMatches("") },
+                        modifier = Modifier.weight(1f).testTag("home_quick_matches")
+                    )
+                    HomeQuickActionTile(
+                        icon = Icons.Rounded.Forum,
+                        title = "Community",
+                        subtitle = "Ideas, updates & help",
+                        onClick = onOpenCommunity,
+                        modifier = Modifier.weight(1f).testTag("home_quick_community")
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    HomeQuickActionTile(
+                        icon = Icons.Rounded.AutoAwesome,
+                        title = "Possibilities",
+                        subtitle = "Assemble full teams",
+                        onClick = onDiscoverPossibilities,
+                        modifier = Modifier.weight(1f).testTag("home_quick_possibilities")
+                    )
+                    HomeQuickActionTile(
+                        icon = Icons.Rounded.Explore,
+                        title = "Intent Search",
+                        subtitle = "Match by purpose",
+                        onClick = onOpenDiscover,
+                        modifier = Modifier.weight(1f).testTag("home_quick_intent")
+                    )
+                }
+            }
+
+            // Recent Activity & Trust Endorsements Feed
+            ActivityFeedSection(
+                items = recentActivityItems,
+                title = "Recent Activity & Collaborations",
+                subtitle = "Accepted partnerships, milestones & skill endorsements",
+                maxItems = 3,
+                onOpenChatWithPeerId = onOpenChatWithPeerId,
+                onViewAllClick = onViewFullActivity
+            )
+
+            // Founding Story & Mascots (Duck & Rabbit — opens on Founding Story illustration by default)
             DuckAndRabbitStoryCard(showArtworkBanner = true)
 
             // The Three Dimensions (Part 4)
@@ -478,6 +548,56 @@ private fun DimensionCard(
                 Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 Text(example, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
                 Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeQuickActionTile(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
                 initialValue = AccessibilitySettings()
             )
             SymbiosisTheme(
+                themeMode = accessibilitySettings.themeMode,
                 highContrast = accessibilitySettings.highContrastMode,
                 textScale = accessibilitySettings.textScale,
                 reducedMotion = accessibilitySettings.reducedMotion

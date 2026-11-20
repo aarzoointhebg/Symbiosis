@@ -207,6 +207,82 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["threadId", "senderId", "senderName", "recipientId", "recipientName", "participantUids", "body", "createdAt"]
+    },
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "Structured community post for sharing ideas, questions, updates, resources, opportunities, and achievements.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string", "description": "Firebase Auth UID of post author" },
+        "authorName": { "type": "string", "description": "Public display name (1-60 chars)" },
+        "authorHeadline": { "type": "string", "description": "Author headline (max 140 chars)" },
+        "category": { "type": "string", "enum": ["IDEAS", "QUESTIONS", "LOOKING_FOR_COLLABORATORS", "PROJECT_UPDATES", "OPPORTUNITIES", "RESOURCES", "ACHIEVEMENTS"] },
+        "title": { "type": "string", "description": "Post headline (3-140 chars)" },
+        "body": { "type": "string", "description": "Post body (5-2000 chars)" },
+        "capabilityTags": { "type": "array", "description": "Relevant capability tags (max 15)" },
+        "requestedCapabilities": { "type": "array", "description": "Capabilities sought from collaborators (max 10)" },
+        "missionId": { "type": "string", "description": "Optional associated mission ID" },
+        "missionTitle": { "type": "string", "description": "Optional associated mission title" },
+        "communityLocationTag": { "type": "string", "description": "Optional community/neighborhood tag (max 80 chars)" },
+        "shareLocationTag": { "type": "boolean" },
+        "linkUrl": { "type": "string", "description": "Optional reference URL (max 300 chars)" },
+        "imageUri": { "type": "string", "description": "Optional image URI selected via Photo Picker (max 500 chars)" },
+        "visibility": { "type": "string", "enum": ["COMMUNITY", "CONNECTIONS"] },
+        "appreciatorUids": { "type": "array", "description": "UIDs of members appreciating the post (max 200)" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "authorName", "category", "title", "body", "visibility", "appreciatorUids", "createdAt", "updatedAt"]
+    },
+    "CommunityComment": {
+      "title": "CommunityComment",
+      "description": "Comment or reply on a community post.",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "body": { "type": "string" },
+        "replyToAuthor": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["postId", "authorId", "authorName", "body", "createdAt"]
+    },
+    "PostBookmark": {
+      "title": "PostBookmark",
+      "description": "Owner-scoped saved bookmark for a community post.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "postId": { "type": "string" },
+        "postTitle": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "postId", "createdAt"]
+    },
+    "FollowedTopic": {
+      "title": "FollowedTopic",
+      "description": "Owner-scoped followed capability/mission topic.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "topic": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "topic", "createdAt"]
+    },
+    "CommunityReport": {
+      "title": "CommunityReport",
+      "description": "User safety report for community post moderation.",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string" },
+        "postId": { "type": "string" },
+        "targetAuthorId": { "type": "string" },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterId", "postId", "targetAuthorId", "reason", "createdAt"]
     }
   },
   "firestore": {
@@ -234,6 +310,14 @@
       "schema": { "$ref": "#/entities/SafetyBlock" },
       "description": "User safety block list."
     },
+    "/users/{userId}/post_bookmarks/{postId}": {
+      "schema": { "$ref": "#/entities/PostBookmark" },
+      "description": "Owner-scoped bookmarked community posts."
+    },
+    "/users/{userId}/followed_topics/{topicId}": {
+      "schema": { "$ref": "#/entities/FollowedTopic" },
+      "description": "Owner-scoped followed topics and mission tags."
+    },
     "/missions/{missionId}": {
       "schema": { "$ref": "#/entities/Mission" },
       "description": "Collaborative missions across SYMBIOSIS."
@@ -253,6 +337,18 @@
     "/collaboration_messages/{messageId}": {
       "schema": { "$ref": "#/entities/CollaborationMessage" },
       "description": "Direct collaboration discussion messages scoped strictly to participants."
+    },
+    "/community_posts/{postId}": {
+      "schema": { "$ref": "#/entities/CommunityPost" },
+      "description": "Community posts supporting ideas, questions, collaboration requests, updates, and achievements."
+    },
+    "/community_comments/{commentId}": {
+      "schema": { "$ref": "#/entities/CommunityComment" },
+      "description": "Discussions and replies on community posts."
+    },
+    "/community_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/CommunityReport" },
+      "description": "Safety and moderation reports filed by users."
     }
   }
 }

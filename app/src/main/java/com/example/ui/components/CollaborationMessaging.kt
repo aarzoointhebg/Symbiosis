@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import com.example.model.CollaborationMessage
 import com.example.model.CommunityProfile
 import com.example.ui.theme.CoverageGreen
-import com.example.ui.theme.SoftCream
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -267,7 +266,7 @@ fun CollaborationDiscussionSheet(
                     enabled = draftMessage.isNotBlank(),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = SoftCream
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     modifier = Modifier
                         .size(52.dp)
@@ -324,18 +323,18 @@ private fun CollaborationMessageBubble(
                     Text(
                         text = if (isMe) "You" else message.senderName,
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = if (isMe) SoftCream.copy(alpha = 0.85f) else MaterialTheme.colorScheme.primary
+                        color = if (isMe) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.primary
                     )
                     Text(
                         text = timestampLabel,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isMe) SoftCream.copy(alpha = 0.68f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isMe) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.72f) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Text(
                     text = message.body,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isMe) SoftCream else MaterialTheme.colorScheme.onSurface
+                    color = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                 )
             }
         }

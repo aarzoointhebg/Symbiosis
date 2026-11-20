@@ -20,16 +20,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Explore
-import androidx.compose.material.icons.rounded.KeyOff
-import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -45,12 +40,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -66,22 +58,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.AuthSignInResult
 import com.example.data.ExtractedCapabilityTags
 import com.example.data.FirebaseAuthService
-import com.example.data.OtpDispatchOutcome
-import com.example.data.OtpVerifyOutcome
-import com.example.data.PasswordlessEmailOtpService
 import com.example.model.AvailabilityWindow
 import com.example.model.CollaborationStyle
 import com.example.model.CommunityProfile
-import com.example.model.OtpAuthUiState
-import com.example.model.OtpSessionStep
 import com.example.model.ProfileVisibility
 import com.example.model.UiState
 import com.example.ui.components.AiBadge
@@ -89,37 +73,19 @@ import com.example.ui.components.InfoBannerCard
 import com.example.ui.components.MascotBadgeAvatar
 import com.example.ui.components.SafetyAndDignityNotice
 import com.example.ui.components.SymbiosisWordmark
-import com.example.ui.theme.SoftCream
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(
     authService: FirebaseAuthService,
-    otpService: PasswordlessEmailOtpService,
     onGoogleAuthSuccess: () -> Unit,
-    onEmailOtpVerifiedDemoSession: (email: String, isNewAccount: Boolean) -> Unit,
     onLaunchLocalWorkspace: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 = Google Cloud Sign-In, 1 = Passwordless Email OTP
     var googleLoading by remember { mutableStateOf(false) }
     var googleError by remember { mutableStateOf<String?>(null) }
-
-    var otpState by remember { mutableStateOf(OtpAuthUiState()) }
-
-    // Cooldown & expiry countdown ticker for OTP
-    LaunchedEffect(otpState.step, otpState.resendCooldownSeconds, otpState.expiresInSeconds) {
-        if (otpState.step == OtpSessionStep.VERIFY_CODE && (otpState.resendCooldownSeconds > 0 || otpState.expiresInSeconds > 0)) {
-            delay(1000L)
-            otpState = otpState.copy(
-                resendCooldownSeconds = (otpState.resendCooldownSeconds - 1).coerceAtLeast(0),
-                expiresInSeconds = (otpState.expiresInSeconds - 1).coerceAtLeast(0)
-            )
-        }
-    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -184,349 +150,65 @@ fun AuthScreen(
                         modifier = Modifier.padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        TabRow(
-                            selectedTabIndex = selectedTab,
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.primary
-                        ) {
-                            Tab(
-                                selected = selectedTab == 0,
-                                onClick = { selectedTab = 0 },
-                                modifier = Modifier.testTag("tab_google_signin"),
-                                text = { Text("Google Cloud Sign-In") }
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Google Cloud Sign-In",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
                             )
-                            Tab(
-                                selected = selectedTab == 1,
-                                onClick = { selectedTab = 1 },
-                                modifier = Modifier.testTag("tab_email_otp"),
-                                text = { Text("Passwordless Email") }
+                            Text(
+                                text = "Sign in with Google via Jetpack Credential Manager to persist your user profile, mission history, bookmarked posts, and collaborations in Cloud Firestore.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
 
-                        if (selectedTab == 0) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(
-                                    text = "Cloud Sync & Gemini AI Logic",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "Sign in with Google via Jetpack Credential Manager to persist your capability profile, shared missions, and consent-based invitations in Cloud Firestore.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-
-                                if (googleError != null) {
-                                    InfoBannerCard(
-                                        title = "Sign-In Notice",
-                                        body = googleError!!,
-                                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                }
-
-                                Button(
-                                    onClick = {
-                                        googleLoading = true
-                                        googleError = null
-                                        scope.launch {
-                                            when (val res = authService.signInWithGoogle(context)) {
-                                                is AuthSignInResult.Success -> {
-                                                    googleLoading = false
-                                                    onGoogleAuthSuccess()
-                                                }
-                                                is AuthSignInResult.Cancelled,
-                                                is AuthSignInResult.NoSavedCredential -> {
-                                                    googleLoading = false
-                                                }
-                                                is AuthSignInResult.Error -> {
-                                                    googleLoading = false
-                                                    googleError = res.message
-                                                }
-                                            }
-                                        }
-                                    },
-                                    enabled = !googleLoading,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(52.dp)
-                                        .testTag("google_sign_in_button"),
-                                    shape = RoundedCornerShape(16.dp)
-                                ) {
-                                    if (googleLoading) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(22.dp),
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            strokeWidth = 2.dp
-                                        )
-                                    } else {
-                                        Icon(Icons.Rounded.VerifiedUser, contentDescription = null)
-                                        Spacer(Modifier.width(10.dp))
-                                        Text("Sign in with Google")
-                                    }
-                                }
-                            }
-                        } else {
-                            // Part 11: Complete Passwordless Email Registration & Authentication
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.KeyOff,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "Passwordless Email Verification",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-
+                            if (googleError != null) {
                                 InfoBannerCard(
-                                    title = if (otpService.isLiveEmailConfigured()) "Transactional Email Ready" else "Development Demonstration Mode",
-                                    body = otpService.gatewayNotice(),
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                    title = "Sign-In Notice",
+                                    body = googleError!!,
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
                                 )
+                            }
 
-                                when (otpState.step) {
-                                    OtpSessionStep.ENTER_EMAIL -> {
-                                        OutlinedTextField(
-                                            value = otpState.email,
-                                            onValueChange = { otpState = otpState.copy(email = it, errorMessage = null) },
-                                            label = { Text("Email address (no password needed)") },
-                                            placeholder = { Text("you@domain.com") },
-                                            leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null) },
-                                            singleLine = true,
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .testTag("otp_email_input"),
-                                            shape = RoundedCornerShape(14.dp)
-                                        )
-                                        if (otpState.errorMessage != null) {
-                                            Text(
-                                                text = otpState.errorMessage!!,
-                                                color = MaterialTheme.colorScheme.error,
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                        }
-                                        Button(
-                                            onClick = {
-                                                scope.launch {
-                                                    otpState = otpState.copy(isSubmitting = true, errorMessage = null)
-                                                    when (val res = otpService.requestOtp(otpState.email)) {
-                                                        is OtpDispatchOutcome.Dispatched -> {
-                                                            otpState = otpState.copy(
-                                                                isSubmitting = false,
-                                                                step = OtpSessionStep.VERIFY_CODE,
-                                                                accountExists = res.accountExists,
-                                                                statusBanner = res.statusMessage,
-                                                                resendCooldownSeconds = res.cooldownSeconds,
-                                                                expiresInSeconds = res.expiresInSeconds,
-                                                                remainingAttempts = PasswordlessEmailOtpService.MAX_ATTEMPTS,
-                                                                devDemoPreviewHint = res.debugDemoHint,
-                                                                codeInput = ""
-                                                            )
-                                                        }
-                                                        is OtpDispatchOutcome.Rejected -> {
-                                                            otpState = otpState.copy(
-                                                                isSubmitting = false,
-                                                                errorMessage = res.reason
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            enabled = !otpState.isSubmitting && otpState.email.isNotBlank(),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(50.dp)
-                                                .testTag("send_otp_button"),
-                                            shape = RoundedCornerShape(14.dp)
-                                        ) {
-                                            Text("Send 6-Digit Verification Code")
-                                        }
-                                    }
-
-                                    OtpSessionStep.VERIFY_CODE -> {
-                                        if (otpState.accountExists == true) {
-                                            Text(
-                                                text = "Existing account recognized — signing you in without a password.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.secondary
-                                            )
-                                        } else {
-                                            Text(
-                                                text = "New email — verifying will create your account and start welcoming onboarding.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.secondary
-                                            )
-                                        }
-
-                                        if (otpState.statusBanner != null) {
-                                            Text(
-                                                text = otpState.statusBanner!!,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-
-                                        // Debug-only demo helper (never rendered in release builds)
-                                        if (otpState.devDemoPreviewHint != null) {
-                                            Surface(
-                                                color = MaterialTheme.colorScheme.primaryContainer,
-                                                shape = RoundedCornerShape(12.dp)
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(10.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        text = "Dev Simulator Only (no email server): Test code ready",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                        modifier = Modifier.weight(1f)
-                                                    )
-                                                    TextButton(
-                                                        onClick = {
-                                                            otpState = otpState.copy(codeInput = otpState.devDemoPreviewHint!!)
-                                                        },
-                                                        modifier = Modifier.testTag("autofill_dev_otp_button")
-                                                    ) {
-                                                        Text("Fill Test Code")
-                                                    }
-                                                }
+                            Button(
+                                onClick = {
+                                    googleLoading = true
+                                    googleError = null
+                                    scope.launch {
+                                        when (val res = authService.signInWithGoogle(context)) {
+                                            is AuthSignInResult.Success -> {
+                                                googleLoading = false
+                                                onGoogleAuthSuccess()
                                             }
-                                        }
-
-                                        OutlinedTextField(
-                                            value = otpState.codeInput,
-                                            onValueChange = { v ->
-                                                val digits = v.filter { it.isDigit() }.take(6)
-                                                otpState = otpState.copy(codeInput = digits, errorMessage = null)
-                                            },
-                                            label = { Text("6-digit verification code") },
-                                            singleLine = true,
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .testTag("otp_code_input"),
-                                            shape = RoundedCornerShape(14.dp)
-                                        )
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(
-                                                text = "Expires in ${otpState.expiresInSeconds / 60}m ${otpState.expiresInSeconds % 60}s",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Text(
-                                                text = "${otpState.remainingAttempts} attempts left",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-
-                                        if (otpState.errorMessage != null) {
-                                            Text(
-                                                text = otpState.errorMessage!!,
-                                                color = MaterialTheme.colorScheme.error,
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                when (val outcome = otpService.verifyOtp(otpState.email, otpState.codeInput)) {
-                                                    is OtpVerifyOutcome.Verified -> {
-                                                        otpState = otpState.copy(
-                                                            step = OtpSessionStep.VERIFIED,
-                                                            errorMessage = null
-                                                        )
-                                                        onEmailOtpVerifiedDemoSession(outcome.normalizedEmail, outcome.isNewAccount)
-                                                    }
-                                                    is OtpVerifyOutcome.Failed -> {
-                                                        otpState = otpState.copy(
-                                                            errorMessage = outcome.reason,
-                                                            remainingAttempts = outcome.remainingAttempts,
-                                                            isLockedOut = outcome.lockedOut
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                            enabled = otpState.codeInput.length == 6 && !otpState.isLockedOut,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(50.dp)
-                                                .testTag("verify_otp_button"),
-                                            shape = RoundedCornerShape(14.dp)
-                                        ) {
-                                            Icon(Icons.Rounded.LockOpen, contentDescription = null)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("Verify & Continue")
-                                        }
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            TextButton(
-                                                onClick = {
-                                                    otpState = OtpAuthUiState(email = otpState.email)
-                                                }
-                                            ) {
-                                                Text("Change Email")
+                                            is AuthSignInResult.Cancelled,
+                                            is AuthSignInResult.NoSavedCredential -> {
+                                                googleLoading = false
                                             }
-                                            TextButton(
-                                                enabled = otpState.resendCooldownSeconds == 0,
-                                                onClick = {
-                                                    scope.launch {
-                                                        when (val res = otpService.requestOtp(otpState.email)) {
-                                                            is OtpDispatchOutcome.Dispatched -> {
-                                                                otpState = otpState.copy(
-                                                                    statusBanner = res.statusMessage,
-                                                                    resendCooldownSeconds = res.cooldownSeconds,
-                                                                    expiresInSeconds = res.expiresInSeconds,
-                                                                    remainingAttempts = PasswordlessEmailOtpService.MAX_ATTEMPTS,
-                                                                    devDemoPreviewHint = res.debugDemoHint,
-                                                                    errorMessage = null
-                                                                )
-                                                            }
-                                                            is OtpDispatchOutcome.Rejected -> {
-                                                                otpState = otpState.copy(errorMessage = res.reason)
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            ) {
-                                                Text(
-                                                    if (otpState.resendCooldownSeconds > 0)
-                                                        "Resend in ${otpState.resendCooldownSeconds}s"
-                                                    else "Resend Code"
-                                                )
+                                            is AuthSignInResult.Error -> {
+                                                googleLoading = false
+                                                googleError = res.message
                                             }
                                         }
                                     }
-
-                                    OtpSessionStep.VERIFIED -> {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                            Text("Email verified! Opening SYMBIOSIS...")
-                                        }
-                                    }
+                                },
+                                enabled = !googleLoading,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp)
+                                    .testTag("google_sign_in_button"),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                if (googleLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(22.dp),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(Icons.Rounded.VerifiedUser, contentDescription = null)
+                                    Spacer(Modifier.width(10.dp))
+                                    Text("Sign in with Google")
                                 }
                             }
                         }

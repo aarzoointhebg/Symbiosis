@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
@@ -79,7 +80,10 @@ import com.example.ui.components.CapabilityTagGroup
 import com.example.ui.components.InfoBannerCard
 import com.example.ui.components.SectionHeading
 import com.example.ui.theme.BotanicalGreen
+import com.example.ui.theme.DarkBarkText
+import com.example.ui.theme.DarkMintPrimary
 import com.example.ui.theme.DeepForestGreen
+import com.example.ui.theme.LocalSymbiosisIsDark
 import com.example.ui.theme.SoftCream
 import com.example.ui.theme.SoftEarthBrown
 import com.example.ui.theme.WarmGoldenYellow
@@ -93,6 +97,7 @@ fun MissionsAndCollaborateScreen(
     currentUserId: String,
     missions: List<Mission>,
     invitations: List<CollaborationInvitation>,
+    acceptedCollaborators: List<CommunityProfile> = emptyList(),
     milestones: List<MissionMilestone>,
     profiles: List<CommunityProfile>,
     ambitions: List<UserAmbition>,
@@ -109,6 +114,7 @@ fun MissionsAndCollaborateScreen(
     onSuggestRequirementsAi: (String, String) -> Unit,
     onClearMissionSuggestion: () -> Unit,
     onRespondInvitation: (CollaborationInvitation, InvitationStatus) -> Unit,
+    onOpenChatWithPeer: (CommunityProfile) -> Unit = {},
     onToggleMilestone: (String) -> Unit,
     onUpdateMissionProgress: (Mission, Long) -> Unit,
     onExpressMissionInterest: (Mission) -> Unit
@@ -233,6 +239,55 @@ fun MissionsAndCollaborateScreen(
 
                 1 -> {
                     SectionHeading(
+                        title = "Accepted Collaborators — Direct Chat",
+                        subtitle = "Message people who have accepted your collaboration invitation"
+                    )
+                    if (acceptedCollaborators.isEmpty()) {
+                        InfoBannerCard(
+                            title = "No accepted chats yet",
+                            body = "Once an invitation is accepted by either you or a peer, you can start chatting directly here."
+                        )
+                    } else {
+                        acceptedCollaborators.forEach { peer ->
+                            Card(
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = peer.displayName,
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = peer.headline.ifBlank { peer.skills.take(3).joinToString(" • ") },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    Button(
+                                        onClick = { onOpenChatWithPeer(peer) },
+                                        modifier = Modifier.height(48.dp).testTag("collaborate_chat_${peer.userId}")
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Rounded.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Chat")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    SectionHeading(
                         title = "Consent-Gated Invitations",
                         subtitle = "No connection is ever forced — accept or decline respectfully"
                     )
@@ -243,12 +298,23 @@ fun MissionsAndCollaborateScreen(
                         )
                     } else {
                         invitations.forEach { inv ->
+                            val peerId = if (inv.senderId == currentUserId) inv.recipientId else inv.senderId
+                            val peerName = if (inv.senderId == currentUserId) inv.recipientName else inv.senderName
+                            val resolvedPeer = acceptedCollaborators.firstOrNull { it.userId == peerId }
+                                ?: profiles.firstOrNull { it.userId == peerId }
+                                ?: CommunityProfile(
+                                    id = peerId,
+                                    userId = peerId,
+                                    displayName = peerName.ifBlank { "Collaborator" },
+                                    headline = "Collaborating on ${inv.missionTitle}"
+                                )
                             InvitationCard(
                                 invitation = inv,
                                 currentUserId = currentUserId,
                                 onAccept = { onRespondInvitation(inv, InvitationStatus.ACCEPTED) },
                                 onDecline = { onRespondInvitation(inv, InvitationStatus.DECLINED) },
-                                onWithdraw = { onRespondInvitation(inv, InvitationStatus.CANCELLED) }
+                                onWithdraw = { onRespondInvitation(inv, InvitationStatus.CANCELLED) },
+                                onOpenChat = { onOpenChatWithPeer(resolvedPeer) }
                             )
                         }
                     }
@@ -430,7 +496,8 @@ private fun InvitationCard(
     currentUserId: String,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
-    onWithdraw: () -> Unit
+    onWithdraw: () -> Unit,
+    onOpenChat: () -> Unit
 ) {
     val status = InvitationStatus.safeParse(invitation.status)
     val isRecipient = invitation.recipientId == currentUserId
@@ -486,6 +553,15 @@ private fun InvitationCard(
                         Text("Withdraw Invitation")
                     }
                 }
+            } else if (status == InvitationStatus.ACCEPTED) {
+                Button(
+                    onClick = onOpenChat,
+                    modifier = Modifier.height(48.dp).testTag("invitation_chat_${invitation.id}")
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Open Collaboration Chat")
+                }
             }
         }
     }
@@ -506,7 +582,8 @@ private fun SharedAmbitionMapSection(
     missions: List<Mission>,
     ambitions: List<UserAmbition>
 ) {
-    val nodes = remember(profiles, missions, ambitions) {
+    val isDark = LocalSymbiosisIsDark.current
+    val nodes = remember(profiles, missions, ambitions, isDark) {
         buildList {
             val centerMission = missions.firstOrNull()
             add(
@@ -515,7 +592,7 @@ private fun SharedAmbitionMapSection(
                     label = centerMission?.title?.take(22) ?: "Shared Possibilities",
                     detail = "Central Mission: ${centerMission?.objective ?: "Collective collaboration"}\nNo popularity ranks — connects strengths to shared goals.",
                     kind = "MISSION",
-                    color = DeepForestGreen
+                    color = if (isDark) DarkMintPrimary else DeepForestGreen
                 )
             )
             ambitions.take(2).forEachIndexed { idx, amb ->
@@ -536,7 +613,7 @@ private fun SharedAmbitionMapSection(
                         label = p.displayName,
                         detail = "${p.displayName}: ${p.skills.take(3).joinToString(", ")}\nAmbition: ${p.ambitions.firstOrNull() ?: p.headline}",
                         kind = "COLLABORATOR",
-                        color = BotanicalGreen
+                        color = if (isDark) Color(0xFF81E0A5) else BotanicalGreen
                     )
                 )
             }
@@ -547,7 +624,7 @@ private fun SharedAmbitionMapSection(
                         label = m.title.take(18),
                         detail = "Related/Complementary Mission: ${m.title}\nIntent: ${m.interpretedIntent}",
                         kind = "MISSION",
-                        color = SoftEarthBrown
+                        color = if (isDark) Color(0xFFE0BA8B) else SoftEarthBrown
                     )
                 )
             }
@@ -660,15 +737,17 @@ private fun SharedAmbitionMapSection(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 nodes.forEach { node ->
+                    val isSelected = selectedNode?.id == node.id
+                    val selectedTextColor = if (isDark || node.color == WarmGoldenYellow) DarkBarkText else Color.White
                     Surface(
                         onClick = { selectedNode = node },
                         shape = RoundedCornerShape(50),
-                        color = if (selectedNode?.id == node.id) node.color else node.color.copy(alpha = 0.14f)
+                        color = if (isSelected) node.color else node.color.copy(alpha = 0.14f)
                     ) {
                         Text(
                             text = "${node.kind}: ${node.label}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (selectedNode?.id == node.id) Color.White else node.color,
+                            color = if (isSelected) selectedTextColor else node.color,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }

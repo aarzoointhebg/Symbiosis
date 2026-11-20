@@ -388,6 +388,51 @@ object DemoSeedData {
             title = "Design accessible visual & audio community dashboard",
             assignedRole = "Mira (Visual Storytelling & Design)",
             completed = false
+        ),
+        MissionMilestone(
+            id = "ms_tactile_1",
+            missionId = "mission_tactile_guide_f",
+            ownerId = "demo_samir",
+            memberUids = listOf("demo_samir"),
+            title = "Record 30-second native plant audio stories",
+            assignedRole = "Samir (Audio & Soundscape)",
+            completed = true
+        ),
+        MissionMilestone(
+            id = "ms_tactile_2",
+            missionId = "mission_tactile_guide_f",
+            ownerId = "demo_samir",
+            memberUids = listOf("demo_samir"),
+            title = "Wire QR/NFC trigger script & accessible captions",
+            assignedRole = "Interactive Trigger Builder",
+            completed = false
+        ),
+        MissionMilestone(
+            id = "ms_greener_1",
+            missionId = "mission_greener_a",
+            ownerId = "demo_elena",
+            memberUids = listOf("demo_elena"),
+            title = "Survey sunny sidewalk corners & accessible planter beds",
+            assignedRole = "Elena (Community Botanist)",
+            completed = true
+        ),
+        MissionMilestone(
+            id = "ms_greener_2",
+            missionId = "mission_greener_a",
+            ownerId = "demo_elena",
+            memberUids = listOf("demo_elena"),
+            title = "Source 30 native shade saplings",
+            assignedRole = "Volunteer Team",
+            completed = false
+        ),
+        MissionMilestone(
+            id = "ms_greener_3",
+            missionId = "mission_greener_a",
+            ownerId = "demo_elena",
+            memberUids = listOf("demo_elena"),
+            title = "Publish neighborhood watering & care schedule",
+            assignedRole = "Visual & Outreach Lead",
+            completed = false
         )
     )
 
@@ -455,6 +500,160 @@ object DemoSeedData {
             proposedRole = "Software & Interactive Trigger Builder",
             rationale = "Your programming strength complements Samir's audio & tactile prototyping so visitors can trigger plant audio stories effortlessly.",
             status = InvitationStatus.PENDING.name
+        ),
+        CollaborationInvitation(
+            id = "inv_sample_accepted_mira",
+            missionId = featuredCommunityMission.id,
+            missionTitle = featuredCommunityMission.title,
+            senderId = userId,
+            senderName = userName,
+            recipientId = "demo_mira",
+            recipientName = "Mira",
+            participantUids = listOf(userId, "demo_mira"),
+            proposedRole = "Visual Storytelling & Accessible Graphics",
+            rationale = "Pairing programming data pipelines with accessible visual design for residents.",
+            status = InvitationStatus.ACCEPTED.name
+        )
+    )
+
+    val sampleCommunityPosts: List<com.example.model.CommunityPost> = listOf(
+        com.example.model.CommunityPost(
+            id = "post_seed_collab",
+            authorId = "demo_rohan",
+            authorName = "Rohan",
+            authorHeadline = "Hardware Maker & Sensor Technician",
+            category = com.example.model.PostCategory.LOOKING_FOR_COLLABORATORS.name,
+            title = "Solar rainwater soil-moisture node needs a dashboard & data story partner",
+            body = "I finished soldering two weatherproof ESP32 soil-moisture boxes for community planters. Looking for someone who enjoys turning raw sensor logs into clear visual charts or accessible audio updates for garden volunteers.",
+            capabilityTags = listOf("Basic electronics", "Data collection", "Open hardware"),
+            requestedCapabilities = listOf("Programming", "Visual design", "Documentation"),
+            missionId = featuredCommunityMission.id,
+            missionTitle = featuredCommunityMission.title,
+            communityLocationTag = "East Block Botanical Corner",
+            shareLocationTag = true,
+            visibility = "COMMUNITY",
+            appreciatorUids = listOf("demo_aarav", "demo_elena")
+        ),
+        com.example.model.CommunityPost(
+            id = "post_seed_idea",
+            authorId = "demo_samir",
+            authorName = "Samir",
+            authorHeadline = "Tactile & Audio Accessibility Architect",
+            category = com.example.model.PostCategory.IDEAS.name,
+            title = "Idea: Tactile QR-triggered bird & leaf soundscapes at neighborhood benches",
+            body = "What if public benches carried raised tactile leaf silhouettes paired with tiny NFC/QR plaques? Blind and sighted neighbors alike could listen to a 30-second story about the tree overhead and local ecology.",
+            capabilityTags = listOf("Audio engineering", "Tactile prototyping", "Accessibility testing"),
+            requestedCapabilities = listOf("Community gardening", "Programming"),
+            missionId = "mission_tactile_guide_f",
+            missionTitle = "Create an accessible audio & tactile plant guide",
+            communityLocationTag = "Botanical Walk",
+            shareLocationTag = true,
+            visibility = "COMMUNITY",
+            appreciatorUids = listOf("demo_mira", "demo_kabir", "demo_elena")
+        ),
+        com.example.model.CommunityPost(
+            id = "post_seed_question",
+            authorId = "demo_kabir",
+            authorName = "Kabir",
+            authorHeadline = "Environmental Researcher & Field Data Analyst",
+            category = com.example.model.PostCategory.QUESTIONS.name,
+            title = "Best low-cost way to verify air-quality sensor drift outdoors over 30 days?",
+            body = "Before publishing our neighborhood microclimate log, I want to make sure humidity spikes aren't skewing particulate readings. Has anyone calibrated optical dust sensors alongside reference stations?",
+            capabilityTags = listOf("Research", "Data collection", "Environmental technology"),
+            requestedCapabilities = listOf("Basic electronics", "Programming"),
+            missionId = featuredCommunityMission.id,
+            missionTitle = featuredCommunityMission.title,
+            visibility = "COMMUNITY",
+            appreciatorUids = listOf("demo_aarav")
+        ),
+        com.example.model.CommunityPost(
+            id = "post_seed_update",
+            authorId = "demo_mira",
+            authorName = "Mira",
+            authorHeadline = "Visual Designer & Inclusive Storyteller",
+            category = com.example.model.PostCategory.PROJECT_UPDATES.name,
+            title = "Update: First high-contrast air quality poster draft tested with screen readers",
+            body = "We paired tabular summaries with clean color-independent icons and semantic alt descriptions so every resident can follow weekly PM2.5 trends. Next step: connecting live CSV exports.",
+            capabilityTags = listOf("Visual design", "Inclusive storytelling", "Accessibility testing"),
+            requestedCapabilities = listOf("Programming"),
+            missionId = featuredCommunityMission.id,
+            missionTitle = featuredCommunityMission.title,
+            visibility = "COMMUNITY",
+            appreciatorUids = listOf("demo_aarav", "demo_samir")
+        ),
+        com.example.model.CommunityPost(
+            id = "post_seed_opportunity",
+            authorId = "demo_elena",
+            authorName = "Elena",
+            authorHeadline = "Community Botanist & Urban Greening Organizer",
+            category = com.example.model.PostCategory.OPPORTUNITIES.name,
+            title = "Saturday step-free native sapling planting & soil prep circle",
+            body = "We have 18 native shade saplings and raised wheelchair-accessible planter beds ready. All experience levels welcome — especially folks who enjoy photography, signage, or watering logistics.",
+            capabilityTags = listOf("Community gardening", "Tree planting", "Workshop coordination"),
+            requestedCapabilities = listOf("Creative communication", "Visual design"),
+            missionId = "mission_greener_a",
+            missionTitle = "Make our neighbourhood greener",
+            communityLocationTag = "Cedar Courtyard",
+            shareLocationTag = true,
+            visibility = "COMMUNITY",
+            appreciatorUids = listOf("demo_nadia", "demo_kabir")
+        ),
+        com.example.model.CommunityPost(
+            id = "post_seed_resource",
+            authorId = "demo_aarav",
+            authorName = "Aarav",
+            authorHeadline = "Systems Engineer & Embedded Firmware Builder",
+            category = com.example.model.PostCategory.RESOURCES.name,
+            title = "Open checklist: Designing accessible CSV & JSON telemetry for civic tools",
+            body = "Put together a concise starter template for naming units clearly, adding plain-language summaries, and exposing keyboard-navigable summaries alongside charts.",
+            capabilityTags = listOf("Programming", "Documentation", "Open-source tools"),
+            linkUrl = "https://www.w3.org/WAI/tutorials/",
+            visibility = "COMMUNITY",
+            appreciatorUids = listOf("demo_mira", "demo_rohan")
+        ),
+        com.example.model.CommunityPost(
+            id = "post_seed_achievement",
+            authorId = "demo_nadia",
+            authorName = "Nadia",
+            authorHeadline = "Sustainability Facilitator & Circular Living Lead",
+            category = com.example.model.PostCategory.ACHIEVEMENTS.name,
+            title = "Milestone celebrated: 42 households joined the block composting collective!",
+            body = "Thanks to Elena's soil advice, Mira's illustrated sorting zine, and Kabir's moisture logs, our first batch of cured compost just nourished 12 newly planted street trees.",
+            capabilityTags = listOf("Workshop coordination", "Creative communication", "Community gardening"),
+            missionId = "mission_compost_e",
+            missionTitle = "Launch a neighbourhood composting collective",
+            communityLocationTag = "Maple Lane Commons",
+            shareLocationTag = true,
+            visibility = "COMMUNITY",
+            appreciatorUids = listOf("demo_elena", "demo_mira", "demo_kabir", "demo_aarav")
+        )
+    )
+
+    val sampleCommunityComments: List<com.example.model.CommunityComment> = listOf(
+        com.example.model.CommunityComment(
+            id = "cmt_seed_1",
+            postId = "post_seed_collab",
+            authorId = "demo_mira",
+            authorName = "Mira",
+            body = "Rohan, I can craft clean accessible soil-moisture graphics if someone wants to wire up the JSON feed!",
+            replyToAuthor = "Rohan"
+        ),
+        com.example.model.CommunityComment(
+            id = "cmt_seed_2",
+            postId = "post_seed_idea",
+            authorId = "demo_elena",
+            authorName = "Elena",
+            body = "Love this! We can pair each tactile leaf plaque with real pressed specimens from Cedar Courtyard.",
+            replyToAuthor = "Samir"
+        ),
+        com.example.model.CommunityComment(
+            id = "cmt_seed_3",
+            postId = "post_seed_question",
+            authorId = "demo_aarav",
+            authorName = "Aarav",
+            body = "Adding a simple rolling median filter plus a humidity compensation curve cuts morning fog spikes dramatically. Happy to share the script!",
+            replyToAuthor = "Kabir"
         )
     )
 }
+

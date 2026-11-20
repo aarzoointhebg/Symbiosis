@@ -28,6 +28,45 @@ data class MissionRequirementSuggestion(
     val suggestedActivities: List<String>
 )
 
+enum class CommunityRecommendationType {
+    POST,
+    COLLABORATION;
+
+    companion object {
+        fun safeParse(raw: String): CommunityRecommendationType =
+            entries.firstOrNull { it.name.equals(raw.trim(), ignoreCase = true) } ?: POST
+    }
+}
+
+data class AiCommunityRecommendation(
+    val targetId: String,
+    val targetType: CommunityRecommendationType,
+    val reason: String,
+    val matchedSkills: List<String>,
+    val linkedMissionTitle: String,
+    val relevanceSummary: String
+)
+
+data class AiCandidatePost(
+    val id: String,
+    val title: String,
+    val category: String,
+    val authorName: String,
+    val capabilityTags: List<String>,
+    val requestedCapabilities: List<String>,
+    val missionTitle: String,
+    val summary: String
+)
+
+data class AiCandidateMission(
+    val id: String,
+    val title: String,
+    val ownerName: String,
+    val domain: String,
+    val requiredCapabilities: List<String>,
+    val description: String
+)
+
 class AiLogicService {
     companion object {
         private const val TAG = "AiLogicService"
@@ -65,6 +104,31 @@ class AiLogicService {
                 "requiredCapabilities" to Schema.array(Schema.string(), "Essential capabilities needed"),
                 "optionalCapabilities" to Schema.array(Schema.string(), "Helpful optional capabilities"),
                 "semanticConcepts" to Schema.array(Schema.string(), "3-5 semantic concept tags")
+            )
+        )
+        Firebase.ai.generativeModel(
+            modelName = MODEL_NAME,
+            generationConfig = generationConfig {
+                responseMimeType = "application/json"
+                responseSchema = schema
+            }
+        )
+    }
+
+    private val communityRecommenderModel by lazy {
+        val itemSchema = Schema.obj(
+            properties = mapOf(
+                "targetId" to Schema.string("Exact id of the recommended post or collaboration mission from the candidate list"),
+                "targetType" to Schema.string("Must be strictly POST or COLLABORATION"),
+                "reason" to Schema.string("1-2 warm, concrete sentences explaining why this fits the user's skills and mission history"),
+                "matchedSkills" to Schema.array(Schema.string(), "1-3 specific user skills, proficiencies, or interests matched"),
+                "linkedMissionTitle" to Schema.string("Title of a past/active user mission this connects with, or empty string"),
+                "relevanceSummary" to Schema.string("Short 2-4 word highlight such as 'Complements Your Skills' or 'Next Collaboration'")
+            )
+        )
+        val schema = Schema.obj(
+            properties = mapOf(
+                "recommendations" to Schema.array(itemSchema, "Top 2 to 4 relevant posts or collaboration opportunities")
             )
         )
         Firebase.ai.generativeModel(
@@ -171,6 +235,126 @@ class AiLogicService {
                 optionalCapabilities = intent.semanticConcepts.take(3),
                 suggestedActivities = intent.activities.take(5)
             )
+        }
+    }
+
+    suspend fun analyzeCommunityPostForMission(
+        postTitle: String,
+        postBody: String
+    ): Result<MissionRequirementSuggestion> = suggestMissionRequirements(postTitle, postBody)
+
+    suspend fun recommendCommunityOpportunities(
+        userDisplayName: String,
+        skillsWithProficiency: List<String>,
+        interests: List<String>,
+        supportWanted: List<String>,
+        missionHistorySummary: List<String>,
+        candidatePosts: List<AiCandidatePost>,
+        candidateMissions: List<AiCandidateMission>
+    ): Result<List<AiCommunityRecommendation>> {
+        if (candidatePosts.isEmpty() && candidateMissions.isEmpty()) {
+            return Result.success(emptyList())
+        }
+        return try {
+            val postsJson = JSONArray().apply {
+                candidatePosts.take(12).forEach { post ->
+                    put(
+                        JSONObject().apply {
+                            put("targetId", post.id)
+                            put("category", post.category)
+                            put("title", post.title)
+                            put("authorName", post.authorName)
+                            put("capabilityTags", JSONArray(post.capabilityTags))
+                            put("requestedCapabilities", JSONArray(post.requestedCapabilities))
+                            put("missionTitle", post.missionTitle)
+                            put("summary", post.summary.take(220))
+                        }
+                    )
+                }
+            }
+            val missionsJson = JSONArray().apply {
+                candidateMissions.take(10).forEach { m ->
+                    put(
+                        JSONObject().apply {
+                            put("targetId", m.id)
+                            put("title", m.title)
+                            put("ownerName", m.ownerName)
+                            put("domain", m.domain)
+                            put("requiredCapabilities", JSONArray(m.requiredCapabilities))
+                            put("description", m.description.take(220))
+                        }
+                    )
+                }
+            }
+
+            val prompt = """
+                You are the intent-aware recommendation engine for SYMBIOSIS, a dignified, human-centered collaboration platform.
+                Analyze the member's capabilities, learning interests, and mission history, then select 2 to 4 highly relevant community posts (targetType="POST") or open collaboration missions (targetType="COLLABORATION") from the provided candidates.
+                Strict rules:
+                - Only return targetId values that exist verbatim in CANDIDATE_POSTS or CANDIDATE_COLLABORATIONS below.
+                - Mix relevant posts and collaboration opportunities when both align well.
+                - Ground every reason strictly in the member's actual skills, interests, or past/active missions.
+                - Never rank human worth or invent fake facts. Keep reasons concise, practical, and encouraging.
+
+                MEMBER_PROFILE:
+                Name: ${userDisplayName.ifBlank { "Member" }}
+                Skills & Proficiency: ${skillsWithProficiency.ifEmpty { listOf("General collaboration") }.joinToString(", ")}
+                Interests: ${interests.ifEmpty { listOf("Community impact") }.joinToString(", ")}
+                Support Wanted / Learning Goals: ${supportWanted.ifEmpty { listOf("Cross-disciplinary collaboration") }.joinToString(", ")}
+                Mission History: ${missionHistorySummary.ifEmpty { listOf("Exploring first shared mission") }.joinToString(" | ")}
+
+                CANDIDATE_POSTS:
+                $postsJson
+
+                CANDIDATE_COLLABORATIONS:
+                $missionsJson
+            """.trimIndent()
+
+            val response = withTimeout(TIMEOUT_MS) {
+                communityRecommenderModel.generateContent(prompt)
+            }
+            val raw = response.text ?: return Result.failure(IllegalStateException("Gemini returned an empty recommendation response."))
+            val json = JSONObject(raw)
+            val arr = json.optJSONArray("recommendations") ?: JSONArray()
+            val validPostIds = candidatePosts.map { it.id }.toSet()
+            val validMissionIds = candidateMissions.map { it.id }.toSet()
+
+            val parsed = (0 until arr.length()).mapNotNull { idx ->
+                val obj = arr.optJSONObject(idx) ?: return@mapNotNull null
+                val targetId = obj.optString("targetId").trim()
+                if (targetId.isEmpty()) return@mapNotNull null
+                var type = CommunityRecommendationType.safeParse(obj.optString("targetType"))
+                if (type == CommunityRecommendationType.POST && targetId !in validPostIds && targetId in validMissionIds) {
+                    type = CommunityRecommendationType.COLLABORATION
+                } else if (type == CommunityRecommendationType.COLLABORATION && targetId !in validMissionIds && targetId in validPostIds) {
+                    type = CommunityRecommendationType.POST
+                }
+                if (type == CommunityRecommendationType.POST && targetId !in validPostIds) return@mapNotNull null
+                if (type == CommunityRecommendationType.COLLABORATION && targetId !in validMissionIds) return@mapNotNull null
+
+                AiCommunityRecommendation(
+                    targetId = targetId,
+                    targetType = type,
+                    reason = obj.optString("reason").trim().ifBlank {
+                        "Matches your capabilities and collaborative mission interests."
+                    },
+                    matchedSkills = obj.optStringList("matchedSkills").take(3),
+                    linkedMissionTitle = obj.optString("linkedMissionTitle").trim(),
+                    relevanceSummary = obj.optString("relevanceSummary").trim().ifBlank {
+                        if (type == CommunityRecommendationType.COLLABORATION) "Collaboration Fit" else "Relevant Thread"
+                    }
+                )
+            }.distinctBy { "${it.targetType.name}:${it.targetId}" }
+
+            Result.success(parsed)
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "recommendCommunityOpportunities timed out", e)
+            Result.failure(IllegalStateException("Gemini recommendations timed out after 45 seconds. Tap Retry."))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "recommendCommunityOpportunities failed", e)
+            Result.failure(e)
         }
     }
 

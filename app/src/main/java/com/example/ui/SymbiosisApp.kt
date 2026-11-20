@@ -12,14 +12,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Diversity3
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Person
@@ -66,15 +67,18 @@ import com.example.data.FirestoreSymbiosisRepository
 import com.example.data.FirestoreUserProfileRepository
 import com.example.data.LocalDemoSymbiosisRepository
 import com.example.data.LocalUserProfileRepository
-import com.example.data.PasswordlessEmailOtpService
 import com.example.model.AccessibilitySettings
 import com.example.model.CapabilityAvailabilityStatus
+import com.example.model.CommunityPost
 import com.example.model.CommunityProfile
 import com.example.model.UiState
 import com.example.model.toUserProfile
+import com.example.ui.components.CollaborationDiscussionSheet
+import com.example.ui.components.GlobalSearchHeader
 import com.example.ui.components.SymbiosisEmblem
 import com.example.ui.components.UserProfileForm
 import com.example.ui.screens.AuthScreen
+import com.example.ui.screens.CommunityScreen
 import com.example.ui.screens.DiscoverAndIntentScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.MatchesScreen
@@ -82,6 +86,7 @@ import com.example.ui.screens.MissionsAndCollaborateScreen
 import com.example.ui.screens.MySpaceAndCapabilitiesScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PossibilityFinderScreen
+import com.example.ui.screens.UserProfileScreen
 import kotlinx.coroutines.launch
 
 private enum class TopNavTab(
@@ -91,14 +96,16 @@ private enum class TopNavTab(
 ) {
     HOME("Home", Icons.Rounded.Home, "nav_home"),
     MATCHES("Matches", Icons.Rounded.Diversity3, "nav_matches"),
-    POSSIBILITIES("Possibilities", Icons.Rounded.AutoAwesome, "nav_possibilities"),
+    COMMUNITY("Community", Icons.Rounded.Forum, "nav_community"),
     MISSIONS("Missions", Icons.Rounded.Groups, "nav_missions"),
     MY_SPACE("My Space", Icons.Rounded.Person, "nav_myspace")
 }
 
 private enum class SecondaryRoute {
+    USER_PROFILE,
     MATCHING_PROFILE,
     INTENT_DISCOVERY,
+    POSSIBILITY_FINDER,
     ONBOARDING
 }
 
@@ -118,7 +125,6 @@ fun SymbiosisApp(
     val authService: FirebaseAuthService = remember(context) {
         CredentialManagerFirebaseAuthService(context.applicationContext)
     }
-    val otpService = remember { PasswordlessEmailOtpService() }
 
     val authStateFlow = remember(authService) { authService.observeAuthState() }
     val authenticatedAccount by authStateFlow.collectAsStateWithLifecycle(
@@ -237,16 +243,7 @@ fun SymbiosisApp(
         else -> {
             AuthScreen(
                 authService = authService,
-                otpService = otpService,
                 onGoogleAuthSuccess = { localGuestSession = null },
-                onEmailOtpVerifiedDemoSession = { email, isNewAccount ->
-                    val name = email.substringBefore("@").replaceFirstChar { it.uppercase() }
-                    localGuestSession = LocalGuestSession(
-                        userId = "otp_${email.lowercase().hashCode()}",
-                        displayName = name,
-                        startInOnboarding = isNewAccount
-                    )
-                },
                 onLaunchLocalWorkspace = {
                     localGuestSession = LocalGuestSession(
                         userId = "local_guest",
@@ -303,6 +300,25 @@ private fun SymbiosisMainShell(
     val aiMissionSuggestion by viewModel.aiMissionSuggestionState.collectAsStateWithLifecycle()
     val possibilityState by viewModel.possibilityState.collectAsStateWithLifecycle()
     val activeMilestones by viewModel.activeMilestones.collectAsStateWithLifecycle()
+    val milestonesByMissionId by viewModel.milestonesByMissionId.collectAsStateWithLifecycle()
+
+    val communityPosts by viewModel.communityPosts.collectAsStateWithLifecycle()
+    val intentRecommendedPosts by viewModel.intentRecommendedPosts.collectAsStateWithLifecycle()
+    val suggestedForYouState by viewModel.suggestedForYouState.collectAsStateWithLifecycle()
+    val commentsByPostId by viewModel.commentsByPostId.collectAsStateWithLifecycle()
+    val bookmarkedPostIds by viewModel.bookmarkedPostIds.collectAsStateWithLifecycle()
+    val bookmarkedPostEntries by viewModel.bookmarkedPostEntries.collectAsStateWithLifecycle()
+    val followedTopics by viewModel.followedTopics.collectAsStateWithLifecycle()
+    val selectedPostCategory by viewModel.selectedPostCategory.collectAsStateWithLifecycle()
+    val communityFeedMode by viewModel.communityFeedMode.collectAsStateWithLifecycle()
+    val communityIntentQuery by viewModel.communityIntentQuery.collectAsStateWithLifecycle()
+    val communityMemberSearchQuery by viewModel.communityMemberSearchQuery.collectAsStateWithLifecycle()
+    val communityMatchedMembers by viewModel.communityMatchedMembers.collectAsStateWithLifecycle()
+
+    val globalSearchQuery by viewModel.globalSearchQuery.collectAsStateWithLifecycle()
+    val globalSearchResults by viewModel.globalSearchResults.collectAsStateWithLifecycle()
+    val acceptedCollaborators by viewModel.acceptedCollaborators.collectAsStateWithLifecycle()
+    val activityFeed by viewModel.activityFeed.collectAsStateWithLifecycle()
 
     val ownProfile = (ownProfileState as? UiState.Success)?.data
         ?: DemoSeedData.defaultUserProfile(viewModel.currentUserId, viewModel.initialDisplayName)
@@ -317,10 +333,23 @@ private fun SymbiosisMainShell(
     var currentTab by remember { mutableStateOf(TopNavTab.HOME) }
     var missionsInitialTab by remember { mutableIntStateOf(0) }
     var mySpaceInitialTab by remember { mutableIntStateOf(3) }
+    var focusedCommunityPostId by remember { mutableStateOf<String?>(null) }
+    var inspectedProfileUserId by remember { mutableStateOf<String?>(null) }
+    var activeChatPeer by remember { mutableStateOf<CommunityProfile?>(null) }
     var secondaryRoute by remember {
         mutableStateOf(
             if (startInOnboarding) SecondaryRoute.ONBOARDING else null
         )
+    }
+    val bookmarkedPosts = remember(communityPosts, bookmarkedPostIds) {
+        communityPosts.filter { it.id in bookmarkedPostIds }
+    }
+
+    val openChatByPeerId: (String) -> Unit = { peerId ->
+        val found = acceptedCollaborators.firstOrNull { it.userId == peerId }
+            ?: discoverableProfiles.firstOrNull { it.userId == peerId }
+            ?: CommunityProfile(id = peerId, userId = peerId, displayName = "Collaborator")
+        activeChatPeer = found
     }
 
     LaunchedEffect(statusBanner) {
@@ -374,8 +403,10 @@ private fun SymbiosisMainShell(
                         title = {
                             Text(
                                 text = when (secondaryRoute) {
+                                    SecondaryRoute.USER_PROFILE -> "User Profile"
                                     SecondaryRoute.MATCHING_PROFILE -> "Matching Profile"
                                     SecondaryRoute.INTENT_DISCOVERY -> "Discover & Intent Search"
+                                    SecondaryRoute.POSSIBILITY_FINDER -> "Possibility Finder"
                                     SecondaryRoute.ONBOARDING -> "Guided Setup"
                                     null -> "SYMBIOSIS"
                                 }
@@ -395,6 +426,28 @@ private fun SymbiosisMainShell(
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.background
                         )
+                    )
+                } else {
+                    GlobalSearchHeader(
+                        query = globalSearchQuery,
+                        results = globalSearchResults,
+                        onQueryChange = viewModel::updateGlobalSearchQuery,
+                        onClearQuery = viewModel::clearGlobalSearch,
+                        onSelectCollaborator = { peer ->
+                            viewModel.updateMatchesSearchQuery(peer.displayName)
+                            currentTab = TopNavTab.MATCHES
+                        },
+                        onMessageCollaborator = { peer ->
+                            activeChatPeer = peer
+                        },
+                        onSelectMission = { _ ->
+                            missionsInitialTab = 0
+                            currentTab = TopNavTab.MISSIONS
+                        },
+                        onSelectCommunityPost = { _ ->
+                            currentTab = TopNavTab.COMMUNITY
+                        },
+                        modifier = Modifier.statusBarsPadding()
                     )
                 }
             },
@@ -452,6 +505,100 @@ private fun SymbiosisMainShell(
 
                 Box(modifier = Modifier.weight(1f).fillMaxSize()) {
                     when (secondaryRoute) {
+                        SecondaryRoute.USER_PROFILE -> {
+                            val targetId = inspectedProfileUserId ?: viewModel.currentUserId
+                            val isOwn = targetId == viewModel.currentUserId
+                            val targetCommunityProfile = if (isOwn) {
+                                ownProfile
+                            } else {
+                                discoverableProfiles.firstOrNull { it.userId == targetId }
+                                    ?: CommunityProfile(userId = targetId, displayName = "Community Member")
+                            }
+                            val targetUserProfile = if (isOwn) {
+                                currentUserProfile
+                            } else {
+                                targetCommunityProfile.toUserProfile()
+                            }
+                            val targetMissionHistory = remember(targetId, allMissions, invitations, isOwn) {
+                                SymbiosisViewModel.computeMissionHistory(
+                                    userId = targetId,
+                                    missions = allMissions,
+                                    acceptedInvitations = if (isOwn) invitations else emptyList()
+                                )
+                            }
+                            val targetProgressSummary = remember(targetId, allMissions, invitations, milestonesByMissionId, isOwn) {
+                                SymbiosisViewModel.computeActiveCollaborationProgress(
+                                    userId = targetId,
+                                    missions = allMissions,
+                                    acceptedInvitations = if (isOwn) invitations else emptyList(),
+                                    milestonesByMissionId = milestonesByMissionId
+                                )
+                            }
+                            val targetAuthoredPosts = remember(targetId, communityPosts) {
+                                communityPosts.filter { it.authorId == targetId }
+                            }
+                            UserProfileScreen(
+                                isOwnProfile = isOwn,
+                                userProfile = targetUserProfile,
+                                communityProfile = targetCommunityProfile,
+                                accountEmail = if (isOwn) userProfileViewModel.accountEmail else null,
+                                isCloudSynced = viewModel.isCloudBacked,
+                                endorsementsBySkill = endorsementSummaryByUser[targetId].orEmpty(),
+                                missionHistory = targetMissionHistory,
+                                activeCollaborationsProgress = targetProgressSummary,
+                                bookmarkedEntries = if (isOwn) bookmarkedPostEntries else emptyList(),
+                                commentsByPostId = commentsByPostId,
+                                authoredPosts = targetAuthoredPosts,
+                                onEditProfile = {
+                                    userProfileViewModel.loadProfile()
+                                    secondaryRoute = SecondaryRoute.MATCHING_PROFILE
+                                },
+                                onStartOnboarding = {
+                                    secondaryRoute = SecondaryRoute.ONBOARDING
+                                },
+                                onToggleSkillEndorsement = viewModel::toggleSkillEndorsement,
+                                onOpenChatWithMember = { peer ->
+                                    activeChatPeer = peer
+                                },
+                                onToggleMissionTask = viewModel::toggleMissionTask,
+                                onInviteMember = { peer ->
+                                    viewModel.sendCollaborationInvitation(
+                                        recipient = peer,
+                                        missionId = DemoSeedData.featuredCommunityMission.id,
+                                        missionTitle = DemoSeedData.featuredCommunityMission.title,
+                                        proposedRole = peer.skills.firstOrNull() ?: "Complementary Collaborator",
+                                        rationale = "Interested in collaborating based on your profile skills & interests."
+                                    )
+                                },
+                                onOpenMission = {
+                                    secondaryRoute = null
+                                    missionsInitialTab = 0
+                                    currentTab = TopNavTab.MISSIONS
+                                },
+                                onExploreMissions = {
+                                    secondaryRoute = null
+                                    missionsInitialTab = 0
+                                    currentTab = TopNavTab.MISSIONS
+                                },
+                                onOpenBookmarkedPost = { post ->
+                                    secondaryRoute = null
+                                    focusedCommunityPostId = post.id
+                                    currentTab = TopNavTab.COMMUNITY
+                                },
+                                onRemoveBookmark = { entry ->
+                                    val targetPost = entry.post ?: CommunityPost(
+                                        id = entry.postId,
+                                        title = entry.displayTitle
+                                    )
+                                    viewModel.togglePostBookmark(targetPost)
+                                },
+                                onBrowseCommunity = {
+                                    secondaryRoute = null
+                                    currentTab = TopNavTab.COMMUNITY
+                                }
+                            )
+                        }
+
                         SecondaryRoute.MATCHING_PROFILE -> {
                             Column(
                                 modifier = Modifier
@@ -492,6 +639,49 @@ private fun SymbiosisMainShell(
                             )
                         }
 
+                        SecondaryRoute.POSSIBILITY_FINDER -> {
+                            PossibilityFinderScreen(
+                                possibilityState = possibilityState,
+                                onAnalyze = viewModel::analyzePossibility,
+                                onSavePossibility = viewModel::savePossibilityAnalysis,
+                                onInviteCollaborator = { peer, role, rationale ->
+                                    val analysis = (possibilityState as? UiState.Success)?.data
+                                    viewModel.sendCollaborationInvitation(
+                                        recipient = peer,
+                                        missionId = DemoSeedData.featuredCommunityMission.id,
+                                        missionTitle = analysis?.objective?.take(90)
+                                            ?: DemoSeedData.featuredCommunityMission.title,
+                                        proposedRole = role,
+                                        rationale = rationale
+                                    )
+                                },
+                                onTurnIntoMission = { analysis ->
+                                    val required = analysis.capabilityBreakdown
+                                        .filter { it.status != CapabilityAvailabilityStatus.OPTIONAL }
+                                        .map { it.name }
+                                    val optional = analysis.capabilityBreakdown
+                                        .filter { it.status == CapabilityAvailabilityStatus.OPTIONAL }
+                                        .map { it.name }
+                                    viewModel.createMission(
+                                        title = analysis.objective.take(90),
+                                        description = analysis.suggestedPlan.joinToString(" • ").ifBlank {
+                                            "Complementary team formed from Possibility Finder."
+                                        },
+                                        objective = analysis.objective,
+                                        requiredCaps = required,
+                                        optionalCaps = optional,
+                                        accessibilityReq = "Inclusive & Accessible",
+                                        targetParticipants = 3,
+                                        onCreated = {
+                                            secondaryRoute = null
+                                            missionsInitialTab = 0
+                                            currentTab = TopNavTab.MISSIONS
+                                        }
+                                    )
+                                }
+                            )
+                        }
+
                         SecondaryRoute.ONBOARDING -> {
                             OnboardingScreen(
                                 initialProfile = ownProfile,
@@ -519,19 +709,31 @@ private fun SymbiosisMainShell(
                                         userName = currentUserProfile.displayName.ifBlank { ownProfile.displayName },
                                         isCloudSynced = viewModel.isCloudBacked,
                                         featuredTeamPreview = collectiveRecommendations.firstOrNull(),
-                                        onDiscoverPossibilities = { currentTab = TopNavTab.POSSIBILITIES },
+                                        recentActivityItems = activityFeed,
+                                        onDiscoverPossibilities = { secondaryRoute = SecondaryRoute.POSSIBILITY_FINDER },
                                         onOpenMatchingProfileForm = {
                                             userProfileViewModel.loadProfile()
                                             secondaryRoute = SecondaryRoute.MATCHING_PROFILE
+                                        },
+                                        onOpenUserProfile = {
+                                            userProfileViewModel.loadProfile()
+                                            inspectedProfileUserId = viewModel.currentUserId
+                                            secondaryRoute = SecondaryRoute.USER_PROFILE
                                         },
                                         onSearchMatches = { query ->
                                             viewModel.updateMatchesSearchQuery(query)
                                             currentTab = TopNavTab.MATCHES
                                         },
                                         onOpenDiscover = { secondaryRoute = SecondaryRoute.INTENT_DISCOVERY },
+                                        onOpenCommunity = { currentTab = TopNavTab.COMMUNITY },
                                         onOpenAmbitionMap = {
                                             missionsInitialTab = 2
                                             currentTab = TopNavTab.MISSIONS
+                                        },
+                                        onOpenChatWithPeerId = openChatByPeerId,
+                                        onViewFullActivity = {
+                                            mySpaceInitialTab = 3
+                                            currentTab = TopNavTab.MY_SPACE
                                         },
                                         onStartOnboarding = { secondaryRoute = SecondaryRoute.ONBOARDING }
                                     )
@@ -568,45 +770,82 @@ private fun SymbiosisMainShell(
                                     )
                                 }
 
-                                TopNavTab.POSSIBILITIES -> {
-                                    PossibilityFinderScreen(
-                                        possibilityState = possibilityState,
-                                        onAnalyze = viewModel::analyzePossibility,
-                                        onSavePossibility = viewModel::savePossibilityAnalysis,
-                                        onInviteCollaborator = { peer, role, rationale ->
-                                            val analysis = (possibilityState as? UiState.Success)?.data
+                                TopNavTab.COMMUNITY -> {
+                                    CommunityScreen(
+                                        currentUserId = viewModel.currentUserId,
+                                        posts = communityPosts,
+                                        intentRecommendations = intentRecommendedPosts,
+                                        commentsByPostId = commentsByPostId,
+                                        bookmarkedPostIds = bookmarkedPostIds,
+                                        followedTopics = followedTopics,
+                                        selectedCategory = selectedPostCategory,
+                                        feedMode = communityFeedMode,
+                                        intentQuery = communityIntentQuery,
+                                        availableMissions = allMissions,
+                                        discoverableProfiles = discoverableProfiles,
+                                        suggestedForYouState = suggestedForYouState,
+                                        onEnsureSuggestedForYou = viewModel::ensureSuggestedForYouLoaded,
+                                        onRefreshSuggestedForYou = { viewModel.refreshSuggestedForYou(force = true) },
+                                        onExpressMissionCollaborationInterest = expressMissionInterest,
+                                        onOpenMissionTab = {
+                                            missionsInitialTab = 0
+                                            currentTab = TopNavTab.MISSIONS
+                                        },
+                                        memberSearchQuery = communityMemberSearchQuery,
+                                        matchedMembers = communityMatchedMembers,
+                                        onMemberSearchQueryChange = viewModel::updateCommunityMemberSearchQuery,
+                                        onClearMemberSearch = viewModel::clearCommunityMemberSearch,
+                                        onOpenMemberProfile = { member ->
+                                            inspectedProfileUserId = member.userId
+                                            secondaryRoute = SecondaryRoute.USER_PROFILE
+                                        },
+                                        onMessageMember = { member ->
+                                            activeChatPeer = member
+                                        },
+                                        onSelectCategory = viewModel::selectPostCategory,
+                                        onSelectFeedMode = viewModel::selectCommunityFeedMode,
+                                        onIntentQueryChange = viewModel::updateCommunityIntentQuery,
+                                        onCreatePost = viewModel::createCommunityPost,
+                                        onToggleAppreciation = viewModel::togglePostAppreciation,
+                                        onAddComment = viewModel::addCommunityComment,
+                                        onToggleBookmark = viewModel::togglePostBookmark,
+                                        onToggleFollowTopic = viewModel::toggleFollowTopic,
+                                        onExpressCollaborationInterest = { post ->
+                                            val peer = discoverableProfiles.firstOrNull { it.userId == post.authorId }
+                                                ?: CommunityProfile(
+                                                    userId = post.authorId,
+                                                    displayName = post.authorName.ifBlank { "Community Member" },
+                                                    headline = post.authorHeadline
+                                                )
                                             viewModel.sendCollaborationInvitation(
                                                 recipient = peer,
-                                                missionId = DemoSeedData.featuredCommunityMission.id,
-                                                missionTitle = analysis?.objective?.take(90)
-                                                    ?: DemoSeedData.featuredCommunityMission.title,
-                                                proposedRole = role,
-                                                rationale = rationale
+                                                missionId = post.missionId.ifBlank { DemoSeedData.featuredCommunityMission.id },
+                                                missionTitle = post.missionTitle.ifBlank { post.title },
+                                                proposedRole = post.requestedCapabilities.firstOrNull() ?: "Complementary Collaborator",
+                                                rationale = "Responded to your community post: \"${post.title}\""
                                             )
                                         },
-                                        onTurnIntoMission = { analysis ->
-                                            val required = analysis.capabilityBreakdown
-                                                .filter { it.status != CapabilityAvailabilityStatus.OPTIONAL }
-                                                .map { it.name }
-                                            val optional = analysis.capabilityBreakdown
-                                                .filter { it.status == CapabilityAvailabilityStatus.OPTIONAL }
-                                                .map { it.name }
-                                            viewModel.createMission(
-                                                title = analysis.objective.take(90),
-                                                description = analysis.suggestedPlan.joinToString(" • ").ifBlank {
-                                                    "Complementary team formed from Possibility Finder."
-                                                },
-                                                objective = analysis.objective,
-                                                requiredCaps = required,
-                                                optionalCaps = optional,
-                                                accessibilityReq = "Inclusive & Accessible",
-                                                targetParticipants = 3,
+                                        onSharePostToPeer = viewModel::sharePostToPeer,
+                                        onSharePostToMissionGroup = viewModel::sharePostToMissionGroup,
+                                        onConvertToMission = { post, useAi ->
+                                            viewModel.convertPostToMission(
+                                                post = post,
+                                                useAi = useAi,
                                                 onCreated = {
                                                     missionsInitialTab = 0
                                                     currentTab = TopNavTab.MISSIONS
                                                 }
                                             )
-                                        }
+                                        },
+                                        onReportPost = viewModel::reportCommunityPost,
+                                        onBlockAuthor = { post ->
+                                            viewModel.blockUser(
+                                                CommunityProfile(userId = post.authorId, displayName = post.authorName),
+                                                "Community post safety boundary"
+                                            )
+                                        },
+                                        focusedPostId = focusedCommunityPostId,
+                                        onClearFocusedPost = { focusedCommunityPostId = null }
                                     )
                                 }
 
@@ -616,6 +855,7 @@ private fun SymbiosisMainShell(
                                         currentUserId = viewModel.currentUserId,
                                         missions = allMissions,
                                         invitations = invitations,
+                                        acceptedCollaborators = acceptedCollaborators,
                                         milestones = activeMilestones,
                                         profiles = discoverableProfiles,
                                         ambitions = ambitions,
@@ -624,6 +864,7 @@ private fun SymbiosisMainShell(
                                         onSuggestRequirementsAi = viewModel::suggestMissionRequirementsWithAi,
                                         onClearMissionSuggestion = viewModel::clearMissionSuggestion,
                                         onRespondInvitation = viewModel::respondToInvitation,
+                                        onOpenChatWithPeer = { peer -> activeChatPeer = peer },
                                         onToggleMilestone = viewModel::toggleDemoMilestone,
                                         onUpdateMissionProgress = viewModel::updateMissionProgress,
                                         onExpressMissionInterest = expressMissionInterest
@@ -645,6 +886,9 @@ private fun SymbiosisMainShell(
                                         accessibilitySettings = accessibilitySettings,
                                         aiTagState = aiTagState,
                                         ownEndorsementsBySkill = endorsementSummaryByUser[viewModel.currentUserId].orEmpty(),
+                                        activityFeed = activityFeed,
+                                        bookmarkedPosts = bookmarkedPosts,
+                                        commentsByPostId = commentsByPostId,
                                         isCloudSynced = userProfileViewModel.isCloudBacked,
                                         onSaveUserProfile = { updatedUserProfile ->
                                             userProfileViewModel.saveProfile(updatedUserProfile)
@@ -662,11 +906,25 @@ private fun SymbiosisMainShell(
                                         onSetHighContrast = { enabled ->
                                             scope.launch { accessibilityRepo.setHighContrast(enabled) }
                                         },
+                                        onSetThemeMode = { mode ->
+                                            scope.launch { accessibilityRepo.setThemeMode(mode) }
+                                        },
                                         onSetReducedMotion = { enabled ->
                                             scope.launch { accessibilityRepo.setReducedMotion(enabled) }
                                         },
                                         onSetPreferredComms = { comms ->
                                             scope.launch { accessibilityRepo.setPreferredComms(comms) }
+                                        },
+                                        onOpenChatWithPeerId = openChatByPeerId,
+                                        onOpenBookmarkedPost = { post ->
+                                            focusedCommunityPostId = post.id
+                                            currentTab = TopNavTab.COMMUNITY
+                                        },
+                                        onTogglePostBookmark = viewModel::togglePostBookmark,
+                                        onOpenUserProfile = {
+                                            userProfileViewModel.loadProfile()
+                                            inspectedProfileUserId = viewModel.currentUserId
+                                            secondaryRoute = SecondaryRoute.USER_PROFILE
                                         },
                                         onSignOut = onSignOut,
                                         onSwitchToGoogleSignIn = onRequestGoogleSync,
@@ -678,6 +936,19 @@ private fun SymbiosisMainShell(
                     }
                 }
             }
+        }
+
+        activeChatPeer?.let { chatPeer ->
+            CollaborationDiscussionSheet(
+                peer = chatPeer,
+                currentUserId = viewModel.currentUserId,
+                complementarySkills = chatPeer.skills.take(3),
+                messages = messagesByPeerId[chatPeer.userId].orEmpty(),
+                onSendMessage = { body, ctxLabel ->
+                    viewModel.sendCollaborationMessage(chatPeer, body, ctxLabel)
+                },
+                onDismiss = { activeChatPeer = null }
+            )
         }
     }
 }
