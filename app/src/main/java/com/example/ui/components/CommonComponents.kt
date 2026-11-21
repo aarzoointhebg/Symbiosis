@@ -1,7 +1,14 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -17,8 +24,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.Card
@@ -35,7 +44,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,6 +56,8 @@ import com.example.model.CapabilityCoverageItem
 import com.example.ui.theme.ComplementaryAmber
 import com.example.ui.theme.CoverageGreen
 import com.example.ui.theme.GapTerracotta
+import com.example.ui.theme.LocalReducedMotion
+import com.example.ui.theme.LocalSymbiosisIsDark
 
 @Composable
 fun SectionHeading(
@@ -293,6 +308,52 @@ fun AccessibilityBadge(label: String, modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
+        }
+    }
+}
+
+@Composable
+fun ThemeModeToggleButton(
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    isDarkMode: Boolean = LocalSymbiosisIsDark.current,
+    testTagName: String = "theme_toggle_button"
+) {
+    val reducedMotion = LocalReducedMotion.current
+    val label = if (isDarkMode) "Switch to Light Mode" else "Switch to Dark Mode"
+
+    Surface(
+        onClick = onToggle,
+        modifier = modifier
+            .size(48.dp)
+            .semantics {
+                role = Role.Button
+                contentDescription = label
+            }
+            .testTag(testTagName),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            AnimatedContent(
+                targetState = isDarkMode,
+                transitionSpec = {
+                    if (reducedMotion) {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    } else {
+                        fadeIn() togetherWith fadeOut()
+                    }
+                },
+                label = "theme_mode_icon"
+            ) { dark ->
+                Icon(
+                    imageVector = if (dark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
+                    contentDescription = label,
+                    tint = if (dark) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
     }
 }

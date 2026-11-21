@@ -46,6 +46,7 @@ import com.example.model.CommunityPost
 import com.example.model.CommunityProfile
 import com.example.model.Mission
 import com.example.ui.GlobalSearchResults
+import com.example.ui.theme.LocalSymbiosisIsDark
 
 @Composable
 fun GlobalSearchHeader(
@@ -57,6 +58,8 @@ fun GlobalSearchHeader(
     onMessageCollaborator: (CommunityProfile) -> Unit,
     onSelectMission: (Mission) -> Unit,
     onSelectCommunityPost: (CommunityPost) -> Unit,
+    isDarkMode: Boolean = LocalSymbiosisIsDark.current,
+    onToggleTheme: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -65,50 +68,63 @@ fun GlobalSearchHeader(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("global_search_input"),
-            singleLine = true,
-            shape = RoundedCornerShape(18.dp),
-            placeholder = {
-                Text(
-                    "Search skills, missions, or collaborators…",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = "Search across missions and collaborators",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            },
-            trailingIcon = {
-                if (query.isNotBlank()) {
-                    IconButton(
-                        onClick = onClearQuery,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("global_search_clear_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Clear search"
-                        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("global_search_input"),
+                singleLine = true,
+                shape = RoundedCornerShape(18.dp),
+                placeholder = {
+                    Text(
+                        "Search skills, missions, or collaborators…",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = "Search across missions and collaborators",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                trailingIcon = {
+                    if (query.isNotBlank()) {
+                        IconButton(
+                            onClick = onClearQuery,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("global_search_clear_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Clear search"
+                            )
+                        }
                     }
-                }
-            },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                )
             )
-        )
+            if (onToggleTheme != null) {
+                ThemeModeToggleButton(
+                    isDarkMode = isDarkMode,
+                    onToggle = onToggleTheme,
+                    testTagName = "global_theme_toggle_button"
+                )
+            }
+        }
 
         AnimatedVisibility(visible = query.isNotBlank()) {
             Card(

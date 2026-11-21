@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.data.AccessibilityPreferencesRepository
 import com.example.data.AiCommunityRecommendation
 import com.example.data.CommunityRecommendationType
 import com.example.engine.ComplementarityEngine
@@ -381,5 +382,37 @@ class ExampleUnitTest {
       candidateMissionIds = listOf("m_2")
     )
     assertEquals(sigA, sigB)
+  }
+
+  @Test
+  fun themeToggle_switchesToDarkAndRestoresPreviousLightVariant() {
+    assertEquals(
+      AppThemeMode.DARK,
+      AccessibilityPreferencesRepository.computeNextToggledThemeMode(
+        current = AppThemeMode.CREAM,
+        lastLightMode = AppThemeMode.CREAM
+      )
+    )
+    assertEquals(
+      AppThemeMode.DARK,
+      AccessibilityPreferencesRepository.computeNextToggledThemeMode(
+        current = AppThemeMode.WHITE,
+        lastLightMode = AppThemeMode.WHITE
+      )
+    )
+    assertEquals(
+      AppThemeMode.WHITE,
+      AccessibilityPreferencesRepository.computeNextToggledThemeMode(
+        current = AppThemeMode.DARK,
+        lastLightMode = AppThemeMode.WHITE
+      )
+    )
+    assertEquals(
+      AppThemeMode.CREAM,
+      AccessibilityPreferencesRepository.computeNextToggledThemeMode(
+        current = AppThemeMode.DARK,
+        lastLightMode = AppThemeMode.DARK
+      )
+    )
   }
 }

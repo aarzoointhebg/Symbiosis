@@ -134,6 +134,7 @@ fun MySpaceAndCapabilitiesScreen(
     onSetTextScale: (Float) -> Unit,
     onSetHighContrast: (Boolean) -> Unit,
     onSetThemeMode: (AppThemeMode) -> Unit = {},
+    onToggleLightDarkTheme: () -> Unit = {},
     onSetReducedMotion: (Boolean) -> Unit,
     onSetPreferredComms: (String) -> Unit,
     onOpenChatWithPeerId: (String) -> Unit = {},
@@ -227,6 +228,7 @@ fun MySpaceAndCapabilitiesScreen(
                     onSetTextScale = onSetTextScale,
                     onSetHighContrast = onSetHighContrast,
                     onSetThemeMode = onSetThemeMode,
+                    onToggleLightDarkTheme = onToggleLightDarkTheme,
                     onSetReducedMotion = onSetReducedMotion,
                     onSetPreferredComms = onSetPreferredComms,
                     onOpenChatWithPeerId = onOpenChatWithPeerId,
@@ -818,6 +820,7 @@ private fun MySpaceOverviewSection(
     onSetTextScale: (Float) -> Unit,
     onSetHighContrast: (Boolean) -> Unit,
     onSetThemeMode: (AppThemeMode) -> Unit,
+    onToggleLightDarkTheme: () -> Unit,
     onSetReducedMotion: (Boolean) -> Unit,
     onSetPreferredComms: (String) -> Unit,
     onOpenChatWithPeerId: (String) -> Unit,
@@ -1076,6 +1079,26 @@ private fun MySpaceOverviewSection(
                     valueRange = 0.85f..1.35f,
                     steps = 4,
                     modifier = Modifier.testTag("accessibility_text_scale_slider")
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Dark Mode", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Switch smoothly between light and dark palettes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = accessibilitySettings.themeMode == AppThemeMode.DARK,
+                    onCheckedChange = { onToggleLightDarkTheme() },
+                    modifier = Modifier.testTag("settings_dark_mode_switch")
                 )
             }
 

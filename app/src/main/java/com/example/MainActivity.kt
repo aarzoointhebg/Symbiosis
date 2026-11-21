@@ -1,14 +1,18 @@
 package com.example
 
+import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.AccessibilityPreferencesRepository
 import com.example.data.configureAppCheck
 import com.example.model.AccessibilitySettings
+import com.example.model.AppThemeMode
 import com.example.ui.SymbiosisApp
 import com.example.ui.theme.SymbiosisTheme
 
@@ -27,6 +31,21 @@ class MainActivity : ComponentActivity() {
             val accessibilitySettings by accessibilityRepo.settingsFlow.collectAsStateWithLifecycle(
                 initialValue = AccessibilitySettings()
             )
+            val isDark = accessibilitySettings.themeMode == AppThemeMode.DARK
+            SideEffect {
+                enableEdgeToEdge(
+                    statusBarStyle = if (isDark) {
+                        SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+                    },
+                    navigationBarStyle = if (isDark) {
+                        SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+                    }
+                )
+            }
             SymbiosisTheme(
                 themeMode = accessibilitySettings.themeMode,
                 highContrast = accessibilitySettings.highContrastMode,

@@ -68,6 +68,7 @@ import com.example.data.FirestoreUserProfileRepository
 import com.example.data.LocalDemoSymbiosisRepository
 import com.example.data.LocalUserProfileRepository
 import com.example.model.AccessibilitySettings
+import com.example.model.AppThemeMode
 import com.example.model.CapabilityAvailabilityStatus
 import com.example.model.CommunityPost
 import com.example.model.CommunityProfile
@@ -76,6 +77,7 @@ import com.example.model.toUserProfile
 import com.example.ui.components.CollaborationDiscussionSheet
 import com.example.ui.components.GlobalSearchHeader
 import com.example.ui.components.SymbiosisEmblem
+import com.example.ui.components.ThemeModeToggleButton
 import com.example.ui.components.UserProfileForm
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.CommunityScreen
@@ -250,6 +252,10 @@ fun SymbiosisApp(
                         displayName = "Guest Explorer",
                         startInOnboarding = false
                     )
+                },
+                isDarkMode = accessibilitySettings.themeMode == AppThemeMode.DARK,
+                onToggleTheme = {
+                    scope.launch { accessibilityRepo.toggleLightDarkTheme() }
                 }
             )
         }
@@ -391,6 +397,11 @@ private fun SymbiosisMainShell(
         }
     }
 
+    val isDarkMode = accessibilitySettings.themeMode == AppThemeMode.DARK
+    val onToggleThemeMode: () -> Unit = {
+        scope.launch { accessibilityRepo.toggleLightDarkTheme() }
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val useRail = maxWidth >= 600.dp
 
@@ -423,6 +434,14 @@ private fun SymbiosisMainShell(
                                 )
                             }
                         },
+                        actions = {
+                            ThemeModeToggleButton(
+                                isDarkMode = isDarkMode,
+                                onToggle = onToggleThemeMode,
+                                testTagName = "secondary_theme_toggle_button",
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        },
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.background
                         )
@@ -447,6 +466,8 @@ private fun SymbiosisMainShell(
                         onSelectCommunityPost = { _ ->
                             currentTab = TopNavTab.COMMUNITY
                         },
+                        isDarkMode = isDarkMode,
+                        onToggleTheme = onToggleThemeMode,
                         modifier = Modifier.statusBarsPadding()
                     )
                 }
@@ -909,6 +930,7 @@ private fun SymbiosisMainShell(
                                         onSetThemeMode = { mode ->
                                             scope.launch { accessibilityRepo.setThemeMode(mode) }
                                         },
+                                        onToggleLightDarkTheme = onToggleThemeMode,
                                         onSetReducedMotion = { enabled ->
                                             scope.launch { accessibilityRepo.setReducedMotion(enabled) }
                                         },

@@ -73,13 +73,17 @@ import com.example.ui.components.InfoBannerCard
 import com.example.ui.components.MascotBadgeAvatar
 import com.example.ui.components.SafetyAndDignityNotice
 import com.example.ui.components.SymbiosisWordmark
+import com.example.ui.components.ThemeModeToggleButton
+import com.example.ui.theme.LocalSymbiosisIsDark
 import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(
     authService: FirebaseAuthService,
     onGoogleAuthSuccess: () -> Unit,
-    onLaunchLocalWorkspace: () -> Unit
+    onLaunchLocalWorkspace: () -> Unit,
+    isDarkMode: Boolean = LocalSymbiosisIsDark.current,
+    onToggleTheme: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -113,8 +117,24 @@ fun AuthScreen(
                     .padding(horizontal = 20.dp, vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                // Brand Hero
-                SymbiosisWordmark(showTagline = true)
+                // Brand Hero + Quick Theme Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SymbiosisWordmark(showTagline = true)
+                    }
+                    if (onToggleTheme != null) {
+                        Spacer(Modifier.width(8.dp))
+                        ThemeModeToggleButton(
+                            isDarkMode = isDarkMode,
+                            onToggle = onToggleTheme,
+                            testTagName = "auth_theme_toggle_button"
+                        )
+                    }
+                }
 
                 Image(
                     painter = painterResource(id = R.drawable.img_symbiosis_hero),

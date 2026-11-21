@@ -24,6 +24,7 @@ class AccessibilityPreferencesRepository(private val context: Context) {
         val REDUCED_MOTION = booleanPreferencesKey("reduced_motion")
         val PREFERRED_COMMS = stringPreferencesKey("preferred_comms")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val LAST_LIGHT_THEME = stringPreferencesKey("last_light_theme")
     }
 
     val settingsFlow: Flow<AccessibilitySettings> = context.accessibilityDataStore.data.map { prefs ->
@@ -53,6 +54,34 @@ class AccessibilityPreferencesRepository(private val context: Context) {
     }
 
     suspend fun setThemeMode(mode: AppThemeMode) {
-        context.accessibilityDataStore.edit { it[Keys.THEME_MODE] = mode.name }
+        context.accessibilityDataStore.edit { prefs ->
+            prefs[Keys.THEME_MODE] = mode.name
+            if (mode != AppThemeMode.DARK) {
+                prefs[Keys.LAST_LIGHT_THEME] = mode.name
+            }
+        }
+    }
+
+    suspend fun toggleLightDarkTheme() {
+        context.accessibilityDataStore.edit { prefs ->
+            val current = AppThemeMode.safeParse(prefs[Keys.THEME_MODE])
+            val lastLight = AppThemeMode.safeParse(prefs[Keys.LAST_LIGHT_THEME])
+            val next = computeNextToggledThemeMode(current = current, lastLightMode = lastLight)
+            if (current != AppThemeMode.DARK) {
+                prefs[Keys.LAST_LIGHT_THEME] = current.name
+            }
+            prefs[Keys.THEME_MODE] = next.name
+        }
+    }
+
+    companion object {
+        fun computeNextToggledThemeMode(
+            current: AppThemeMode,
+            lastLightMode: AppThemeMode = AppThemeMode.CREAM
+        ): AppThemeMode = if (current == AppThemeMode.DARK) {
+            if (lastLightMode != AppThemeMode.DARK) lastLightMode else AppThemeMode.CREAM
+        } else {
+            AppThemeMode.DARK
+        }
     }
 }
