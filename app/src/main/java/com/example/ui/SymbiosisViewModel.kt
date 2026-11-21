@@ -33,6 +33,7 @@ import com.example.model.MatchingMode
 import com.example.model.Mission
 import com.example.model.MissionMilestone
 import com.example.model.MissionStatus
+import com.example.model.OverlappingSkillMatch
 import com.example.model.PossibilityAnalysis
 import com.example.model.PostBookmark
 import com.example.model.PostCategory
@@ -430,6 +431,95 @@ class SymbiosisViewModel(
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), UiState.Loading)
+
+    private val _firestoreSkillOverlapQueryPeers = MutableStateFlow<List<CommunityProfile>>(emptyList())
+    private val _isRefreshingSkillOverlap = MutableStateFlow(false)
+    val isRefreshingSkillOverlap: StateFlow<Boolean> = _isRefreshingSkillOverlap.asStateFlow()
+
+    val overlappingSkillFeedState: StateFlow<UiState<OverlappingSkillFeed>> = combine(
+        effectiveSeekerProfile,
+        firestorePeersState,
+        _firestoreSkillOverlapQueryPeers,
+        safetyBlocks,
+        _firestoreOnlyMatches
+    ) { me, peersState, queriedPeers, blocks, firestoreOnly ->
+        val blockedSet = blocks.map { it.blockedUserId }.toSet()
+        when (peersState) {
+            is UiState.Loading -> UiState.Loading
+            is UiState.Error -> UiState.Error(peersState.message)
+            is UiState.Success -> {
+                val firestorePeers = (queriedPeers + peersState.data)
+                    .distinctBy { it.userId }
+                    .filter { it.userId != currentUserId && it.userId !in blockedSet }
+                val firestoreIds = firestorePeers.map { it.userId }.toSet()
+
+                val candidatePool = if (isCloudBacked && firestoreOnly) {
+                    firestorePeers
+                } else {
+                    (firestorePeers + DemoSeedData.communityCollaborators)
+                        .distinctBy { it.userId }
+                        .filter { it.userId != currentUserId && it.userId !in blockedSet }
+                }
+
+                val ranked = ComplementarityEngine.matchByOverlappingSkills(
+                    seeker = me,
+                    candidates = candidatePool,
+                    blockedIds = blockedSet
+                ).sortedWith(
+                    compareByDescending<OverlappingSkillMatch> { it.profile.userId in firestoreIds }
+                        .thenByDescending { it.overlappingSkills.size }
+                        .thenByDescending { it.overlapScore }
+                )
+
+                UiState.Success(
+                    OverlappingSkillFeed(
+                        seekerSkills = me.allCapabilities(),
+                        firestorePeerCount = firestorePeers.size,
+                        items = ranked.map { match ->
+                            OverlappingSkillMatchItem(
+                                match = match,
+                                isFromFirestore = match.profile.userId in firestoreIds
+                            )
+                        }
+                    )
+                )
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), UiState.Loading)
+
+    fun refreshOverlappingSkillMatches(userTriggered: Boolean = false) {
+        val skills = effectiveSeekerProfile.value.allCapabilities()
+        if (skills.isEmpty()) {
+            if (userTriggered) {
+                _statusBanner.value = "Add at least one skill on your profile to match overlapping collaborators."
+            }
+            return
+        }
+        viewModelScope.launch {
+            _isRefreshingSkillOverlap.value = true
+            repository.queryCollaboratorsByOverlappingSkills(skills)
+                .onSuccess { peers ->
+                    _firestoreSkillOverlapQueryPeers.value = peers
+                    if (userTriggered) {
+                        val overlapCount = ComplementarityEngine.matchByOverlappingSkills(
+                            seeker = effectiveSeekerProfile.value,
+                            candidates = peers
+                        ).size
+                        _statusBanner.value = if (isCloudBacked) {
+                            "Queried Firestore for overlapping skills ($overlapCount ${if (overlapCount == 1) "match" else "matches"} found)."
+                        } else {
+                            "Updated overlapping skill collaborator suggestions ($overlapCount found)."
+                        }
+                    }
+                }
+                .onFailure { err ->
+                    if (userTriggered) {
+                        _statusBanner.value = err.localizedMessage ?: "Could not refresh overlapping skill matches from Firestore."
+                    }
+                }
+            _isRefreshingSkillOverlap.value = false
+        }
+    }
 
     val collectiveRecommendations: StateFlow<List<CollectiveTeamRecommendation>> = combine(
         effectiveSeekerProfile,
@@ -1748,6 +1838,17 @@ data class MatchesFeed(
     val totalCandidateCount: Int,
     val availableInterestCategories: List<String>,
     val items: List<MatchCardItem>
+)
+
+data class OverlappingSkillMatchItem(
+    val match: OverlappingSkillMatch,
+    val isFromFirestore: Boolean
+)
+
+data class OverlappingSkillFeed(
+    val seekerSkills: List<String> = emptyList(),
+    val firestorePeerCount: Int = 0,
+    val items: List<OverlappingSkillMatchItem> = emptyList()
 )
 
 enum class CommunityFeedMode(val label: String) {

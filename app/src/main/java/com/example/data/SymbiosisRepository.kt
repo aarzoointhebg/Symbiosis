@@ -44,6 +44,7 @@ interface SymbiosisRepository {
 
     fun observeOwnProfile(): Flow<CommunityProfile?>
     fun observeCommunityProfiles(): Flow<List<CommunityProfile>>
+    suspend fun queryCollaboratorsByOverlappingSkills(seekerSkills: List<String>): Result<List<CommunityProfile>>
     fun observeAmbitions(): Flow<List<UserAmbition>>
     fun observeCommunityMissions(): Flow<List<Mission>>
     fun observeUserMemberMissions(): Flow<List<Mission>>
@@ -147,6 +148,50 @@ class FirestoreSymbiosisRepository(
                 }
                 .catch { error -> logFlowError(error, OperationType.LIST, path, uid); throw error }
         )
+    }
+
+    override suspend fun queryCollaboratorsByOverlappingSkills(
+        seekerSkills: List<String>
+    ): Result<List<CommunityProfile>> {
+        val path = "community_profiles"
+        return try {
+            val uid = requireActiveUid()
+            val querySkills = seekerSkills
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinctBy { it.lowercase() }
+                .take(10)
+            if (querySkills.isEmpty()) {
+                return Result.success(emptyList())
+            }
+            val snapshot = try {
+                db.collection("community_profiles")
+                    .whereEqualTo("visibility", "COMMUNITY")
+                    .whereArrayContainsAny("skills", querySkills)
+                    .limit(40)
+                    .get()
+                    .await()
+            } catch (e: FirebaseFirestoreException) {
+                if (e.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION) {
+                    db.collection("community_profiles")
+                        .whereEqualTo("visibility", "COMMUNITY")
+                        .limit(60)
+                        .get()
+                        .await()
+                } else {
+                    throw e
+                }
+            }
+            val peers = snapshot
+                .toObjects(CommunityProfile::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                .filter { it.userId != uid }
+            Result.success(peers)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.LIST, path)
+            Result.failure(e)
+        }
     }
 
     override fun observeAmbitions(): Flow<List<UserAmbition>> = flow {
@@ -935,6 +980,19 @@ class LocalDemoSymbiosisRepository(
 
     override fun observeOwnProfile(): Flow<CommunityProfile?> = ownProfileFlow
     override fun observeCommunityProfiles(): Flow<List<CommunityProfile>> = communityFlow
+    override suspend fun queryCollaboratorsByOverlappingSkills(
+        seekerSkills: List<String>
+    ): Result<List<CommunityProfile>> {
+        val clean = seekerSkills.map { it.trim() }.filter { it.isNotEmpty() }
+        if (clean.isEmpty()) return Result.success(emptyList())
+        val matches = communityFlow.value.filter { peer ->
+            peer.userId != currentUserId &&
+                peer.allCapabilities().any { candSkill ->
+                    clean.any { mySkill -> com.example.engine.ComplementarityEngine.capabilitiesMatch(candSkill, mySkill) }
+                }
+        }
+        return Result.success(matches)
+    }
     override fun observeAmbitions(): Flow<List<UserAmbition>> = ambitionsFlow
     override fun observeCommunityMissions(): Flow<List<Mission>> = missionsFlow
     override fun observeUserMemberMissions(): Flow<List<Mission>> =

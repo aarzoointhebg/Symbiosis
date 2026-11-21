@@ -152,6 +152,31 @@ class UserProfileViewModel(
         }
     }
 
+    fun saveSkillsAndInterests(
+        skills: List<String>,
+        interests: List<String>,
+        onSaved: () -> Unit = {}
+    ) {
+        val current = (profileState.value as? UiState.Success)?.data
+            ?: _manualRefreshProfile.value
+            ?: DemoSeedData.defaultUserProfile(currentUserId, initialDisplayName).toUserProfile()
+        val cleanSkills = skills.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }.take(20)
+        val cleanInterests = interests.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }.take(20)
+        val updatedProficiencies = cleanSkills.associateWith { skill ->
+            current.proficiencyFor(skill).name
+        }
+        saveProfile(
+            profile = current.copy(
+                displayName = current.displayName.ifBlank { initialDisplayName.ifBlank { "Explorer" } },
+                skills = cleanSkills,
+                skillProficiencies = updatedProficiencies,
+                interests = cleanInterests,
+                onboardingCompleted = true
+            ),
+            onSaved = onSaved
+        )
+    }
+
     fun clearMessages() {
         _saveError.value = null
         _saveSuccessMessage.value = null

@@ -18,6 +18,7 @@ import com.example.model.MissionStatus
 import com.example.model.PostBookmark
 import com.example.model.PostCategory
 import com.example.model.SkillProficiency
+import com.example.model.UserProfile
 import com.example.ui.SuggestedForYouItem
 import com.example.ui.SymbiosisViewModel
 import org.junit.Assert.assertEquals
@@ -414,5 +415,83 @@ class ExampleUnitTest {
         lastLightMode = AppThemeMode.DARK
       )
     )
+  }
+
+  @Test
+  fun overlappingSkillMatching_ranksCollaboratorsBySharedSkillsAndInterests() {
+    val seeker = CommunityProfile(
+      userId = "u_me",
+      displayName = "Amina",
+      skills = listOf("Programming", "Research", "Documentation"),
+      interests = listOf("Environmental technology", "Open hardware")
+    )
+
+    val highOverlap = CommunityProfile(
+      userId = "u_high",
+      displayName = "Devon",
+      skills = listOf("Coding", "Research", "Visual design"),
+      interests = listOf("Environmental technology")
+    )
+
+    val singleOverlap = CommunityProfile(
+      userId = "u_single",
+      displayName = "Sora",
+      skills = listOf("Research", "Community gardening", "Audio engineering"),
+      interests = listOf("Urban ecology")
+    )
+
+    val zeroOverlap = CommunityProfile(
+      userId = "u_none",
+      displayName = "NoOverlap",
+      skills = listOf("Audio engineering"),
+      interests = listOf("Sound design")
+    )
+
+    val blockedOverlap = CommunityProfile(
+      userId = "u_blocked",
+      displayName = "Blocked",
+      skills = listOf("Programming", "Research", "Documentation")
+    )
+
+    val overlaps = ComplementarityEngine.matchByOverlappingSkills(
+      seeker = seeker,
+      candidates = listOf(seeker, singleOverlap, zeroOverlap, blockedOverlap, highOverlap),
+      blockedIds = setOf("u_blocked")
+    )
+
+    assertEquals(2, overlaps.size)
+    assertEquals("u_high", overlaps.first().profile.userId)
+    assertEquals(2, overlaps.first().overlappingSkills.size)
+    assertEquals(listOf("Environmental technology"), overlaps.first().sharedInterests)
+    assertTrue(overlaps.first().overlapScore > overlaps.last().overlapScore)
+
+    val modeResults = ComplementarityEngine.matchIndividuals(
+      seeker = seeker,
+      candidates = listOf(singleOverlap, zeroOverlap, highOverlap),
+      mode = MatchingMode.SKILL_OVERLAP
+    )
+    assertEquals(2, modeResults.size)
+    assertEquals("u_high", modeResults.first().profile.userId)
+    assertTrue(modeResults.first().explanation.contains("overlapping skills", ignoreCase = true))
+  }
+
+  @Test
+  fun userProfile_toCommunityProfile_preservesUpdatedSkillsAndInterests() {
+    val existing = CommunityProfile(
+      userId = "u_1",
+      displayName = "Amina",
+      skills = listOf("Old skill"),
+      interests = listOf("Old interest")
+    )
+    val updated = UserProfile(
+      userId = "u_1",
+      displayName = "Amina",
+      skills = listOf("Programming", "Basic electronics"),
+      interests = listOf("Open hardware", "Clean Energy")
+    )
+
+    val merged = updated.toCommunityProfile(existing = existing)
+    assertEquals(listOf("Programming", "Basic electronics"), merged.skills)
+    assertEquals(listOf("Open hardware", "Clean Energy"), merged.interests)
   }
 }

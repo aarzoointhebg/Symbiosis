@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.PersonSearch
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Verified
@@ -57,6 +58,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -84,6 +86,8 @@ import com.example.model.UiState
 import com.example.model.UserProfile
 import com.example.ui.MatchCardItem
 import com.example.ui.MatchesFeed
+import com.example.ui.OverlappingSkillFeed
+import com.example.ui.OverlappingSkillMatchItem
 import com.example.ui.components.AccessibilityBadge
 import com.example.ui.components.CollaborationDiscussionSheet
 import com.example.ui.components.InfoBannerCard
@@ -109,6 +113,8 @@ private val QUICK_SKILL_KEYWORDS = listOf(
 @Composable
 fun MatchesScreen(
     matchesFeedState: UiState<MatchesFeed>,
+    overlappingSkillFeedState: UiState<OverlappingSkillFeed> = UiState.Success(OverlappingSkillFeed()),
+    isRefreshingSkillOverlap: Boolean = false,
     currentUserProfile: UserProfile,
     selectedMode: MatchingMode,
     searchQuery: String,
@@ -125,6 +131,8 @@ fun MatchesScreen(
     onClearFilters: () -> Unit,
     onEditMatchingProfile: () -> Unit,
     onOpenIntentDiscovery: () -> Unit,
+    onAutoLoadOverlappingSkillMatches: () -> Unit = {},
+    onRefreshOverlappingSkillMatches: () -> Unit = {},
     onToggleSkillEndorsement: (CommunityProfile, String) -> Unit = { _, _ -> },
     onSendCollaborationMessage: (recipient: CommunityProfile, body: String, contextLabel: String) -> Unit = { _, _, _ -> },
     onSendInvitation: (recipient: CommunityProfile, missionId: String, missionTitle: String, role: String, rationale: String) -> Unit,
@@ -133,7 +141,12 @@ fun MatchesScreen(
     val dismissedUserIds = remember { mutableStateListOf<String>() }
     var blockTarget by remember { mutableStateOf<CommunityProfile?>(null) }
     var blockReason by remember { mutableStateOf("") }
-    var activeDiscussionMatch by remember { mutableStateOf<IndividualMatchResult?>(null) }
+    var activeDiscussionPeer by remember { mutableStateOf<CommunityProfile?>(null) }
+    var activeDiscussionSkills by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    LaunchedEffect(isCloudSynced, currentUserProfile.skills) {
+        onAutoLoadOverlappingSkillMatches()
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -276,6 +289,33 @@ fun MatchesScreen(
                         }
                     }
                 }
+            }
+
+            // Firestore Overlapping-Skill Collaborator Suggestions
+            item(key = "overlapping_skill_suggestions") {
+                OverlappingSkillSuggestionsSection(
+                    feedState = overlappingSkillFeedState,
+                    isCloudSynced = isCloudSynced,
+                    isRefreshing = isRefreshingSkillOverlap,
+                    dismissedUserIds = dismissedUserIds,
+                    messagesByPeerId = messagesByPeerId,
+                    onRefresh = onRefreshOverlappingSkillMatches,
+                    onEditProfile = onEditMatchingProfile,
+                    onDiscuss = { overlapItem ->
+                        activeDiscussionPeer = overlapItem.match.profile
+                        activeDiscussionSkills = overlapItem.match.overlappingSkills
+                    },
+                    onInvite = { overlapItem ->
+                        val targetMission = allMissions.firstOrNull()
+                        onSendInvitation(
+                            overlapItem.match.profile,
+                            targetMission?.id ?: "mission_community_env",
+                            targetMission?.title ?: "Collaborative Mission",
+                            overlapItem.match.overlappingSkills.firstOrNull() ?: "Skill Peer",
+                            overlapItem.match.explanation
+                        )
+                    }
+                )
             }
 
             // Search Bar for Skill Keywords & Interest Categories
@@ -422,6 +462,7 @@ fun MatchesScreen(
                     ) {
                         listOf(
                             MatchingMode.CAPABILITY,
+                            MatchingMode.SKILL_OVERLAP,
                             MatchingMode.ASSISTANCE,
                             MatchingMode.AMBITION
                         ).forEach { mode ->
@@ -588,7 +629,10 @@ fun MatchesScreen(
                                 onToggleEndorseSkill = { skill ->
                                     onToggleSkillEndorsement(item.match.profile, skill)
                                 },
-                                onDiscuss = { activeDiscussionMatch = item.match },
+                                onDiscuss = {
+                                    activeDiscussionPeer = item.match.profile
+                                    activeDiscussionSkills = item.match.complementaryCapabilities
+                                },
                                 onInvite = {
                                     val targetMission = allMissions.firstOrNull()
                                     onSendInvitation(
@@ -613,17 +657,17 @@ fun MatchesScreen(
         }
     }
 
-    if (activeDiscussionMatch != null) {
-        val targetMatch = activeDiscussionMatch!!
+    if (activeDiscussionPeer != null) {
+        val targetPeer = activeDiscussionPeer!!
         CollaborationDiscussionSheet(
-            peer = targetMatch.profile,
+            peer = targetPeer,
             currentUserId = currentUserProfile.userId,
-            complementarySkills = targetMatch.complementaryCapabilities,
-            messages = messagesByPeerId[targetMatch.profile.userId].orEmpty(),
+            complementarySkills = activeDiscussionSkills,
+            messages = messagesByPeerId[targetPeer.userId].orEmpty(),
             onSendMessage = { body, contextLabel ->
-                onSendCollaborationMessage(targetMatch.profile, body, contextLabel)
+                onSendCollaborationMessage(targetPeer, body, contextLabel)
             },
-            onDismiss = { activeDiscussionMatch = null }
+            onDismiss = { activeDiscussionPeer = null }
         )
     }
 
@@ -967,3 +1011,284 @@ private fun ComplementaryProfileMatchCard(
         }
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OverlappingSkillSuggestionsSection(
+    feedState: UiState<OverlappingSkillFeed>,
+    isCloudSynced: Boolean,
+    isRefreshing: Boolean,
+    dismissedUserIds: List<String>,
+    messagesByPeerId: Map<String, List<CollaborationMessage>>,
+    onRefresh: () -> Unit,
+    onEditProfile: () -> Unit,
+    onDiscuss: (OverlappingSkillMatchItem) -> Unit,
+    onInvite: (OverlappingSkillMatchItem) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("overlapping_skill_suggestions_section"),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Overlapping Skill Collaborators",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (isCloudSynced) {
+                            "Queried from Firestore profiles sharing skills with you"
+                        } else {
+                            "Peers sharing overlapping skills and interests"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(
+                    onClick = onRefresh,
+                    enabled = !isRefreshing,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("matches_refresh_overlap_button")
+                ) {
+                    if (isRefreshing) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text("Refresh")
+                }
+            }
+
+            when (feedState) {
+                is UiState.Loading -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text(
+                            text = "Finding collaborators with overlapping skill sets…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                is UiState.Error -> {
+                    Text(
+                        text = feedState.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                is UiState.Success -> {
+                    val feed = feedState.data
+                    val visibleItems = feed.items.filter { it.match.profile.userId !in dismissedUserIds }
+
+                    if (feed.seekerSkills.isEmpty()) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Add your skills in Profile so Firestore can match collaborators with overlapping skill sets.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                OutlinedButton(
+                                    onClick = onEditProfile,
+                                    modifier = Modifier.heightIn(min = 48.dp),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Add Skills")
+                                }
+                            }
+                        }
+                    } else if (visibleItems.isEmpty()) {
+                        Text(
+                            text = "No collaborators currently share overlapping skills with ${feed.seekerSkills.joinToString(", ")}. Try adding more skills or tapping Refresh.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(
+                                items = visibleItems,
+                                key = { "overlap_${it.match.profile.userId}" }
+                            ) { overlapItem ->
+                                OverlappingSkillCollaboratorCard(
+                                    item = overlapItem,
+                                    messageCount = messagesByPeerId[overlapItem.match.profile.userId].orEmpty().size,
+                                    onDiscuss = { onDiscuss(overlapItem) },
+                                    onInvite = { onInvite(overlapItem) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OverlappingSkillCollaboratorCard(
+    item: OverlappingSkillMatchItem,
+    messageCount: Int,
+    onDiscuss: () -> Unit,
+    onInvite: () -> Unit
+) {
+    val match = item.match
+    val profile = match.profile
+    Card(
+        modifier = Modifier
+            .width(292.dp)
+            .testTag("overlapping_skill_card_${profile.userId}"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = profile.displayName,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1
+                    )
+                    if (profile.headline.isNotBlank()) {
+                        Text(
+                            text = profile.headline,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Surface(
+                        color = CoverageGreen.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(50)
+                    ) {
+                        Text(
+                            text = "${match.overlappingSkills.size} shared • ${match.overlapPercent}%",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = CoverageGreen,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                    Surface(
+                        color = if (item.isFromFirestore) {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        shape = RoundedCornerShape(50)
+                    ) {
+                        Text(
+                            text = if (item.isFromFirestore) "Firestore" else "Directory",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                match.overlappingSkills.take(4).forEach { skill ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(50)
+                    ) {
+                        Text(
+                            text = skill,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = match.explanation,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDiscuss,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .testTag("overlap_discuss_${profile.userId}"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (messageCount > 0) "Chat ($messageCount)" else "Chat", maxLines = 1)
+                }
+                Button(
+                    onClick = onInvite,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .testTag("overlap_invite_${profile.userId}"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Invite", maxLines = 1)
+                }
+            }
+        }
+    }
+}
+

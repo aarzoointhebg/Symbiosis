@@ -5,6 +5,10 @@ enum class MatchingMode(val title: String, val subtitle: String) {
         "Capability Matching",
         "Discover peers whose abilities complement yours."
     ),
+    SKILL_OVERLAP(
+        "Overlapping Skills",
+        "Suggest collaborators from Firestore who share overlapping skill sets with you."
+    ),
     ASSISTANCE(
         "Assistance Matching",
         "Reciprocal task support where both people contribute."
@@ -18,6 +22,15 @@ enum class MatchingMode(val title: String, val subtitle: String) {
         "Form multi-person teams covering an entire objective."
     )
 }
+
+data class OverlappingSkillMatch(
+    val profile: CommunityProfile,
+    val overlappingSkills: List<String>,
+    val sharedInterests: List<String>,
+    val overlapScore: Float,
+    val overlapPercent: Int,
+    val explanation: String
+)
 
 enum class DiscoveryCategory(val label: String, val description: String) {
     SAME_MISSION(

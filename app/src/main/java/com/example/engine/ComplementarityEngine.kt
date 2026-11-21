@@ -6,6 +6,7 @@ import com.example.model.CommunityProfile
 import com.example.model.IndividualMatchResult
 import com.example.model.MatchingMode
 import com.example.model.Mission
+import com.example.model.OverlappingSkillMatch
 import com.example.model.RoleAssignment
 import kotlin.math.min
 
@@ -110,12 +111,30 @@ object ComplementarityEngine {
                     .toFloat()
                 val mentorshipBonus = (mentorshipSynergies.size.coerceAtMost(2) * 0.06f)
 
+                val overlappingSkills = candCaps.filter { cap ->
+                    seekerCaps.any { mine -> capabilitiesMatch(cap, mine) }
+                }.distinctBy { it.lowercase() }
+
                 val score = when (mode) {
                     MatchingMode.CAPABILITY -> {
                         val compRatio = (weightedComplementaryUnits / 4.2f).coerceIn(0f, 1f) * 0.60f
                         val mutualRatio = (weightedReciprocalUnits / 3.1f).coerceIn(0f, 1f) * 0.24f
                         val availBonus = if (availabilityAligned) 0.10f else 0f
                         (compRatio + mutualRatio + availBonus + mentorshipBonus) * workloadFactor
+                    }
+                    MatchingMode.SKILL_OVERLAP -> {
+                        if (overlappingSkills.isEmpty()) return@mapNotNull null
+                        val unionCount = (seekerCaps.map { normalizeCapability(it) } + candCaps.map { normalizeCapability(it) })
+                            .filter { it.isNotEmpty() }
+                            .distinct()
+                            .size
+                            .coerceAtLeast(1)
+                        val jaccard = overlappingSkills.size.toFloat() / unionCount.toFloat()
+                        val seekerCoverage = overlappingSkills.size.toFloat() / seekerCaps.size.coerceAtLeast(1).toFloat()
+                        val interestBonus = (sharedAmbitions.size.coerceAtMost(2) * 0.08f)
+                        val availBonus = if (availabilityAligned) 0.06f else 0f
+                        ((jaccard * 0.45f) + (seekerCoverage * 0.41f) + interestBonus + availBonus)
+                            .coerceIn(0.15f, 1f) * workloadFactor
                     }
                     MatchingMode.ASSISTANCE -> {
                         val directNeedScore = candCaps.filter { cap ->
@@ -157,17 +176,26 @@ object ComplementarityEngine {
                         "$cap (${seeker.proficiencyFor(cap).label})"
                     }
 
-                val mutualSummary = buildString {
-                    if (complementary.isNotEmpty()) {
-                        append("${candidate.displayName} brings $highlightedCandSkills.")
+                val mutualSummary = if (mode == MatchingMode.SKILL_OVERLAP) {
+                    buildString {
+                        append("Overlapping skills (${overlappingSkills.size}): ${overlappingSkills.take(4).joinToString(", ")}.")
+                        if (sharedAmbitions.isNotEmpty()) {
+                            append(" Shared interests: ${sharedAmbitions.take(2).joinToString(", ")}.")
+                        }
                     }
-                    if (mentorshipSynergies.isNotEmpty()) {
-                        append(" Great peer growth pairing on ${mentorshipSynergies.take(2).joinToString(", ")}.")
-                    }
-                    if (seekerHelpsCand.isNotEmpty()) {
-                        append(" In return, you contribute $highlightedSeekerSkills.")
-                    }
-                }.ifBlank { "Potential peer collaborator with compatible schedule." }
+                } else {
+                    buildString {
+                        if (complementary.isNotEmpty()) {
+                            append("${candidate.displayName} brings $highlightedCandSkills.")
+                        }
+                        if (mentorshipSynergies.isNotEmpty()) {
+                            append(" Great peer growth pairing on ${mentorshipSynergies.take(2).joinToString(", ")}.")
+                        }
+                        if (seekerHelpsCand.isNotEmpty()) {
+                            append(" In return, you contribute $highlightedSeekerSkills.")
+                        }
+                    }.ifBlank { "Potential peer collaborator with compatible schedule." }
+                }
 
                 val accessibilityNote = if (candidate.accessibilityPrefs.isNotEmpty()) {
                     "Prefers: ${candidate.accessibilityPrefs.joinToString(", ")}"
@@ -178,6 +206,8 @@ object ComplementarityEngine {
                 val explanation = when (mode) {
                     MatchingMode.CAPABILITY ->
                         "${candidate.displayName} complements your profile with ${highlightedCandSkills.ifBlank { "distinct perspectives" }}, while your ${highlightedSeekerSkills.ifBlank { "experience" }} balances the partnership."
+                    MatchingMode.SKILL_OVERLAP ->
+                        "${candidate.displayName} shares ${overlappingSkills.size} overlapping ${if (overlappingSkills.size == 1) "skill" else "skills"} with you: ${overlappingSkills.take(4).joinToString(", ")}."
                     MatchingMode.ASSISTANCE ->
                         "Reciprocal fit: ${candidate.displayName} brings ${highlightedCandSkills.ifBlank { "targeted support" }} and welcomes collaboration on ${candNeeds.take(2).joinToString(", ").ifBlank { "shared tasks" }}."
                     MatchingMode.AMBITION ->
@@ -188,6 +218,7 @@ object ComplementarityEngine {
 
                 val metricLabel = when (mode) {
                     MatchingMode.CAPABILITY -> "${(score * 100).toInt()}% capability complementarity"
+                    MatchingMode.SKILL_OVERLAP -> "${(score * 100).toInt()}% skill overlap"
                     MatchingMode.ASSISTANCE -> "${(score * 100).toInt()}% reciprocal fit"
                     MatchingMode.AMBITION -> "${(score * 100).toInt()}% ambition alignment"
                     MatchingMode.COLLECTIVE -> "${(score * 100).toInt()}% group contribution fit"
@@ -196,7 +227,7 @@ object ComplementarityEngine {
                 IndividualMatchResult(
                     profile = candidate,
                     mode = mode,
-                    complementaryCapabilities = complementary,
+                    complementaryCapabilities = if (mode == MatchingMode.SKILL_OVERLAP) overlappingSkills else complementary,
                     mutualExchangeSummary = mutualSummary,
                     sharedAmbitions = sharedAmbitions,
                     availabilityAligned = availabilityAligned,
@@ -207,6 +238,78 @@ object ComplementarityEngine {
                 )
             }
             .sortedByDescending { it.alignmentScore }
+    }
+
+    /**
+     * Simple collaborator matching algorithm based on overlapping skill sets.
+     * Ranks candidates retrieved from Firestore (or local pool) by count of
+     * overlapping skills, Jaccard + seeker skill coverage ratio, and shared interests.
+     */
+    fun matchByOverlappingSkills(
+        seeker: CommunityProfile,
+        candidates: List<CommunityProfile>,
+        blockedIds: Set<String> = emptySet()
+    ): List<OverlappingSkillMatch> {
+        val seekerSkills = seeker.allCapabilities()
+        if (seekerSkills.isEmpty()) return emptyList()
+
+        val seekerInterests = seeker.interests + seeker.ambitions
+        val seekerNormalized = seekerSkills.map { normalizeCapability(it) }.filter { it.isNotEmpty() }.distinct()
+
+        return candidates
+            .filter { it.userId != seeker.userId && it.userId !in blockedIds }
+            .mapNotNull { candidate ->
+                val candidateSkills = candidate.allCapabilities()
+                if (candidateSkills.isEmpty()) return@mapNotNull null
+
+                val overlapping = candidateSkills
+                    .filter { candSkill -> seekerSkills.any { mySkill -> capabilitiesMatch(candSkill, mySkill) } }
+                    .distinctBy { it.lowercase() }
+
+                if (overlapping.isEmpty()) return@mapNotNull null
+
+                val sharedInterests = findSharedConceptPhrases(
+                    seekerInterests,
+                    candidate.interests + candidate.ambitions
+                )
+                val candNormalized = candidateSkills.map { normalizeCapability(it) }.filter { it.isNotEmpty() }.distinct()
+                val unionCount = (seekerNormalized + candNormalized).distinct().size.coerceAtLeast(1)
+                val jaccard = overlapping.size.toFloat() / unionCount.toFloat()
+                val seekerCoverage = overlapping.size.toFloat() / seekerSkills.size.coerceAtLeast(1).toFloat()
+                val interestBoost = sharedInterests.size.coerceAtMost(2) * 0.08f
+                val availabilityBoost = if (
+                    seeker.availability == candidate.availability ||
+                    seeker.availability == "FLEXIBLE" ||
+                    candidate.availability == "FLEXIBLE"
+                ) 0.06f else 0f
+
+                val score = ((jaccard * 0.45f) + (seekerCoverage * 0.41f) + interestBoost + availabilityBoost)
+                    .coerceIn(0.15f, 1f)
+                val percent = (score * 100f).toInt().coerceIn(10, 100)
+
+                val explanation = buildString {
+                    append(
+                        "Shares ${overlapping.size} overlapping ${if (overlapping.size == 1) "skill" else "skills"}: " +
+                            overlapping.take(4).joinToString(", ")
+                    )
+                    if (sharedInterests.isNotEmpty()) {
+                        append(" • Shared interests: ${sharedInterests.take(2).joinToString(", ")}")
+                    }
+                }
+
+                OverlappingSkillMatch(
+                    profile = candidate,
+                    overlappingSkills = overlapping,
+                    sharedInterests = sharedInterests,
+                    overlapScore = score,
+                    overlapPercent = percent,
+                    explanation = explanation
+                )
+            }
+            .sortedWith(
+                compareByDescending<OverlappingSkillMatch> { it.overlappingSkills.size }
+                    .thenByDescending { it.overlapScore }
+            )
     }
 
     /**

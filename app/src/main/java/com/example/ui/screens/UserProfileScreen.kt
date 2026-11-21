@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -86,6 +88,7 @@ import com.example.ui.ActiveCollaborationsProgressSummary
 import com.example.ui.BookmarkedPostEntry
 import com.example.ui.components.MascotBadgeAvatar
 import com.example.ui.components.ProfileSkillBadgesSection
+import com.example.ui.components.ProfileSkillsAndInterestsEditor
 import com.example.ui.theme.BotanicalGreen
 import com.example.ui.theme.CoverageGreen
 import com.example.ui.theme.DarkMintPrimary
@@ -115,6 +118,8 @@ fun UserProfileScreen(
     bookmarkedEntries: List<BookmarkedPostEntry>,
     commentsByPostId: Map<String, List<CommunityComment>>,
     authoredPosts: List<CommunityPost> = emptyList(),
+    isProfileSaving: Boolean = false,
+    onSaveSkillsAndInterests: (skills: List<String>, interests: List<String>, onDone: () -> Unit) -> Unit = { _, _, _ -> },
     onEditProfile: () -> Unit = {},
     onStartOnboarding: () -> Unit = {},
     onToggleSkillEndorsement: (CommunityProfile, String) -> Unit = { _, _ -> },
@@ -130,6 +135,7 @@ fun UserProfileScreen(
 ) {
     val isDark = LocalSymbiosisIsDark.current
     var missionFilter by remember { mutableStateOf(MissionHistoryFilter.ALL) }
+    var showInlineSkillsEditor by remember { mutableStateOf(false) }
 
     val mergedSkills = remember(userProfile.skills, communityProfile) {
         (userProfile.skills + communityProfile.allCapabilities())
@@ -397,21 +403,58 @@ fun UserProfileScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Rounded.Verified, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Text(
-                                text = "Skills & Proficiency",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Rounded.Verified, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    text = "Skills & Proficiency",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            if (isOwnProfile) {
+                                TextButton(
+                                    onClick = { showInlineSkillsEditor = !showInlineSkillsEditor },
+                                    modifier = Modifier
+                                        .heightIn(min = 48.dp)
+                                        .testTag("user_profile_inline_edit_skills_interests_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Edit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(if (showInlineSkillsEditor) "Close Editor" else "Edit Skills & Interests")
+                                }
+                            }
+                        }
+
+                        AnimatedVisibility(visible = isOwnProfile && showInlineSkillsEditor) {
+                            ProfileSkillsAndInterestsEditor(
+                                initialSkills = mergedSkills,
+                                initialInterests = mergedInterests,
+                                isCloudSynced = isCloudSynced,
+                                isSaving = isProfileSaving,
+                                onSaveSkillsAndInterests = { updatedSkills, updatedInterests ->
+                                    onSaveSkillsAndInterests(updatedSkills, updatedInterests) {
+                                        showInlineSkillsEditor = false
+                                    }
+                                },
+                                onCancel = { showInlineSkillsEditor = false }
                             )
                         }
 
                         if (mergedSkills.isEmpty()) {
                             Text(
                                 text = if (isOwnProfile) {
-                                    "No skills added yet. Tap Edit Skills & Profile to add capabilities and self-assessed proficiency levels."
+                                    "No skills added yet. Tap Edit Skills & Interests above to add capabilities and store them in Firestore."
                                 } else {
                                     "This member is still adding capability tags to their profile."
                                 },

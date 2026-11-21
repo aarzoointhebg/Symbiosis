@@ -295,6 +295,8 @@ private fun SymbiosisMainShell(
 
     val selectedMode by viewModel.selectedMatchingMode.collectAsStateWithLifecycle()
     val matchesFeedState by viewModel.matchesFeedState.collectAsStateWithLifecycle()
+    val overlappingSkillFeedState by viewModel.overlappingSkillFeedState.collectAsStateWithLifecycle()
+    val isRefreshingSkillOverlap by viewModel.isRefreshingSkillOverlap.collectAsStateWithLifecycle()
     val matchesSearchQuery by viewModel.matchesSearchQuery.collectAsStateWithLifecycle()
     val selectedInterestCategory by viewModel.selectedInterestCategory.collectAsStateWithLifecycle()
     val firestoreOnlyMatches by viewModel.firestoreOnlyMatches.collectAsStateWithLifecycle()
@@ -570,6 +572,13 @@ private fun SymbiosisMainShell(
                                 bookmarkedEntries = if (isOwn) bookmarkedPostEntries else emptyList(),
                                 commentsByPostId = commentsByPostId,
                                 authoredPosts = targetAuthoredPosts,
+                                isProfileSaving = isProfileSaving,
+                                onSaveSkillsAndInterests = { updatedSkills, updatedInterests, done ->
+                                    userProfileViewModel.saveSkillsAndInterests(updatedSkills, updatedInterests) {
+                                        viewModel.refreshOverlappingSkillMatches(userTriggered = false)
+                                        done()
+                                    }
+                                },
                                 onEditProfile = {
                                     userProfileViewModel.loadProfile()
                                     secondaryRoute = SecondaryRoute.MATCHING_PROFILE
@@ -763,6 +772,8 @@ private fun SymbiosisMainShell(
                                 TopNavTab.MATCHES -> {
                                     MatchesScreen(
                                         matchesFeedState = matchesFeedState,
+                                        overlappingSkillFeedState = overlappingSkillFeedState,
+                                        isRefreshingSkillOverlap = isRefreshingSkillOverlap,
                                         currentUserProfile = currentUserProfile,
                                         selectedMode = selectedMode,
                                         searchQuery = matchesSearchQuery,
@@ -783,6 +794,12 @@ private fun SymbiosisMainShell(
                                         },
                                         onOpenIntentDiscovery = {
                                             secondaryRoute = SecondaryRoute.INTENT_DISCOVERY
+                                        },
+                                        onAutoLoadOverlappingSkillMatches = {
+                                            viewModel.refreshOverlappingSkillMatches(userTriggered = false)
+                                        },
+                                        onRefreshOverlappingSkillMatches = {
+                                            viewModel.refreshOverlappingSkillMatches(userTriggered = true)
                                         },
                                         onToggleSkillEndorsement = viewModel::toggleSkillEndorsement,
                                         onSendCollaborationMessage = viewModel::sendCollaborationMessage,

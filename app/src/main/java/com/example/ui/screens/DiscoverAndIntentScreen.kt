@@ -122,7 +122,7 @@ fun DiscoverAndIntentScreen(
                     selected = activeTab == 0,
                     onClick = { activeTab = 0 },
                     modifier = Modifier.testTag("discover_tab_matching"),
-                    text = { Text("4 Matching Modes") }
+                    text = { Text("Matching Modes") }
                 )
                 Tab(
                     selected = activeTab == 1,
